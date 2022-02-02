@@ -8,13 +8,13 @@ import GraphQL
 class Client {
     let messenger: Messenger
     
-    let onMessage: (String) -> Void
-    let onConnectionError: (ConnectionErrorResponse) -> Void
-    let onConnectionAck: (ConnectionAckResponse) -> Void
-    let onConnectionKeepAlive: (ConnectionKeepAliveResponse) -> Void
-    let onData: (DataResponse) -> Void
-    let onError: (ErrorResponse) -> Void
-    let onComplete: (CompleteResponse) -> Void
+    var onConnectionError: (ConnectionErrorResponse) -> Void = { _ in }
+    var onConnectionAck: (ConnectionAckResponse) -> Void = { _ in }
+    var onConnectionKeepAlive: (ConnectionKeepAliveResponse) -> Void = { _ in }
+    var onData: (DataResponse) -> Void = { _ in }
+    var onError: (ErrorResponse) -> Void = { _ in }
+    var onComplete: (CompleteResponse) -> Void = { _ in }
+    var onMessage: (String) -> Void = { _ in }
     
     let encoder = GraphQLJSONEncoder()
     let decoder = JSONDecoder()
@@ -23,30 +23,10 @@ class Client {
     ///
     /// - Parameters:
     ///   - messenger: The messenger to bind the client to.
-    ///   - onConnectionError: Callback run on receipt of a `connection_error` message
-    ///   - onConnectionAck: Callback run on receipt of a `connection_ack` message
-    ///   - onData: Callback run on receipt of a `data` message
-    ///   - onError: Callback run on receipt of an `error` message
-    ///   - onComplete: Callback run on receipt of a `complete` message
-    ///   - onMessage: Callback run on receipt of any message
     init(
-        messenger: Messenger,
-        onConnectionError: @escaping (ConnectionErrorResponse) -> Void = { _ in () },
-        onConnectionAck: @escaping (ConnectionAckResponse) -> Void = { _ in () },
-        onConnectionKeepAlive: @escaping (ConnectionKeepAliveResponse) -> Void = { _ in () },
-        onData: @escaping (DataResponse) -> Void = { _ in () },
-        onError: @escaping (ErrorResponse) -> Void = { _ in () },
-        onComplete: @escaping (CompleteResponse) -> Void = { _ in () },
-        onMessage: @escaping (String) -> Void = { _ in () }
+        messenger: Messenger
     ) {
         self.messenger = messenger
-        self.onMessage = onMessage
-        self.onConnectionError = onConnectionError
-        self.onConnectionAck = onConnectionAck
-        self.onConnectionKeepAlive = onConnectionKeepAlive
-        self.onData = onData
-        self.onError = onError
-        self.onComplete = onComplete
         
         self.messenger.onRecieve { [weak self] message in
             guard let self = self else { return }
@@ -123,6 +103,48 @@ class Client {
                     self.messenger.error(error.message, code: error.code)
             }
         }
+    }
+    
+    /// Define the callback run on receipt of a `connection_error` message
+    /// - Parameter callback: The callback to assign
+    func onConnectionError(_ callback: @escaping (ConnectionErrorResponse) -> Void) {
+        self.onConnectionError = callback
+    }
+    
+    /// Define the callback run on receipt of a `connection_ack` message
+    /// - Parameter callback: The callback to assign
+    func onConnectionAck(_ callback: @escaping (ConnectionAckResponse) -> Void) {
+        self.onConnectionAck = callback
+    }
+    
+    /// Define the callback run on receipt of a `connection_ka` message
+    /// - Parameter callback: The callback to assign
+    func onConnectionKeepAlive(_ callback: @escaping (ConnectionKeepAliveResponse) -> Void) {
+        self.onConnectionKeepAlive = callback
+    }
+    
+    /// Define the callback run on receipt of a `data` message
+    /// - Parameter callback: The callback to assign
+    func onData(_ callback: @escaping (DataResponse) -> Void) {
+        self.onData = callback
+    }
+    
+    /// Define the callback run on receipt of an `error` message
+    /// - Parameter callback: The callback to assign
+    func onError(_ callback: @escaping (ErrorResponse) -> Void) {
+        self.onError = callback
+    }
+    
+    /// Define the callback run on receipt of any message
+    /// - Parameter callback: The callback to assign
+    func onComplete(_ callback: @escaping (CompleteResponse) -> Void) {
+        self.onComplete = callback
+    }
+    
+    /// Define the callback run on receipt of a `complete` message
+    /// - Parameter callback: The callback to assign
+    func onMessage(_ callback: @escaping (String) -> Void) {
+        self.onMessage = callback
     }
     
     /// Send a `connection_init` request through the messenger

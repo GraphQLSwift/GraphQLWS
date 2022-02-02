@@ -11,11 +11,12 @@ import RxSwift
 class Server {
     let messenger: Messenger
     
-    let auth: (ConnectionInitRequest) throws -> Void
     let onExecute: (GraphQLRequest) -> EventLoopFuture<GraphQLResult>
     let onSubscribe: (GraphQLRequest) -> EventLoopFuture<SubscriptionResult>
-    let onExit: () -> Void
-    let onMessage: (String) -> Void
+    
+    var auth: (ConnectionInitRequest) throws -> Void = { _ in }
+    var onExit: () -> Void = { }
+    var onMessage: (String) -> Void = { _ in }
     
     var initialized = false
     
@@ -27,25 +28,16 @@ class Server {
     ///
     /// - Parameters:
     ///   - messenger: The messenger to bind the server to.
-    ///   - auth: Callback run during `connection_init` resolution that allows authorization using the `payload`. Throw to indicate that authorization has failed.
     ///   - onExecute: Callback run during `start` resolution for non-streaming queries. Typically this is `API.execute`.
     ///   - onSubscribe: Callback run during `start` resolution for streaming queries. Typically this is `API.subscribe`.
-    ///   - onExit: Callback run when the communication is shut down, either by the client or server
-    ///   - onMessage: callback run on receipt of any message
     init(
         messenger: Messenger,
-        auth: @escaping (ConnectionInitRequest) throws -> Void,
         onExecute: @escaping (GraphQLRequest) -> EventLoopFuture<GraphQLResult>,
-        onSubscribe: @escaping (GraphQLRequest) -> EventLoopFuture<SubscriptionResult>,
-        onExit: @escaping () -> Void,
-        onMessage: @escaping (String) -> Void = { _ in () }
+        onSubscribe: @escaping (GraphQLRequest) -> EventLoopFuture<SubscriptionResult>
     ) {
         self.messenger = messenger
-        self.auth = auth
         self.onExecute = onExecute
         self.onSubscribe = onSubscribe
-        self.onExit = onExit
-        self.onMessage = onMessage
         
         self.messenger.onRecieve { [weak self] message in
             guard let self = self else { return }
@@ -114,6 +106,25 @@ class Server {
         //        messenger.onClose {
         //            _ = self.context?.cleanupSubscription()
         //        }
+    }
+    
+    /// Define the callback run during `connection_init` resolution that allows authorization using the `payload`.
+    /// Throw to indicate that authorization has failed.
+    /// - Parameter callback: The callback to assign
+    func auth(_ callback: @escaping (ConnectionInitRequest) throws -> Void) {
+        self.auth = callback
+    }
+    
+    /// Define the callback run when the communication is shut down, either by the client or server
+    /// - Parameter callback: The callback to assign
+    func onExit(_ callback: @escaping () -> Void) {
+        self.onExit = callback
+    }
+    
+    /// Define the callback run on receipt of any message
+    /// - Parameter callback: The callback to assign
+    func onMessage(_ callback: @escaping (String) -> Void) {
+        self.onMessage = callback
     }
     
     private func onConnectionInit(_ connectionInitRequest: ConnectionInitRequest) {

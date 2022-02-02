@@ -25,7 +25,6 @@ class GraphqlWsTests: XCTestCase {
         
         server = Server(
             messenger: serverMessenger,
-            auth: { _ in },
             onExecute: { graphQLRequest in
                 api.execute(
                     request: graphQLRequest.query,
@@ -39,43 +38,41 @@ class GraphqlWsTests: XCTestCase {
                     context: context,
                     on: eventLoop
                 )
-            },
-            onExit: {}
+            }
         )
     }
     
     func testSingleOp() throws {
-        let encoder = GraphQLJSONEncoder()
         let id = UUID().description
         
         // Test single-op conversation
         var messages = [String]()
         let completeExpectation = XCTestExpectation()
         
-        let client = Client(
-            messenger: clientMessenger,
-            onConnectionAck: { _ in
-                self.clientMessenger.send(StartRequest(
-                    payload: GraphQLRequest(
-                        query: """
-                        query {
-                            hello
-                        }
-                        """
-                    ),
-                    id: id
-                ).toJSON(encoder))
-            },
-            onError: { _ in
-                completeExpectation.fulfill()
-            },
-            onComplete: { _ in
-                completeExpectation.fulfill()
-            },
-            onMessage: { message in
-                messages.append(message)
-            }
-        )
+        let client = Client(messenger: clientMessenger)
+        
+        client.onConnectionAck { [weak client] _ in
+            guard let client = client else { return }
+            client.sendStart(
+                payload: GraphQLRequest(
+                    query: """
+                    query {
+                        hello
+                    }
+                    """
+                ),
+                id: id
+            )
+        }
+        client.onError { _ in
+            completeExpectation.fulfill()
+        }
+        client.onComplete { _ in
+            completeExpectation.fulfill()
+        }
+        client.onMessage { message in
+            messages.append(message)
+        }
         
         client.sendConnectionInit(payload: ConnectionInitAuth(authToken: ""))
         
@@ -88,7 +85,6 @@ class GraphqlWsTests: XCTestCase {
     }
     
     func testStreaming() throws {
-        let encoder = GraphQLJSONEncoder()
         let id = UUID().description
         
         // Test streaming conversation
@@ -98,43 +94,42 @@ class GraphqlWsTests: XCTestCase {
         var dataIndex = 1
         let dataIndexMax = 3
         
-        let client = Client(
-            messenger: clientMessenger,
-            onConnectionAck: { _ in
-                self.clientMessenger.send(StartRequest(
-                    payload: GraphQLRequest(
-                        query: """
-                        subscription {
-                            hello
-                        }
-                        """
-                    ),
-                    id: id
-                ).toJSON(encoder))
-                
-                // Short sleep to allow for server to register subscription
-                usleep(3000)
-                
+        let client = Client(messenger: clientMessenger)
+        client.onConnectionAck { [weak client] _ in
+            guard let client = client else { return }
+            client.sendStart(
+                payload: GraphQLRequest(
+                    query: """
+                    subscription {
+                        hello
+                    }
+                    """
+                ),
+                id: id
+            )
+            
+            // Short sleep to allow for server to register subscription
+            usleep(3000)
+            
+            pubsub.onNext("hello \(dataIndex)")
+        }
+        client.onData { _ in
+            dataIndex = dataIndex + 1
+            if dataIndex <= dataIndexMax {
                 pubsub.onNext("hello \(dataIndex)")
-            },
-            onData: { _ in
-                dataIndex = dataIndex + 1
-                if dataIndex <= dataIndexMax {
-                    pubsub.onNext("hello \(dataIndex)")
-                } else {
-                    pubsub.onCompleted()
-                }
-            },
-            onError: { _ in
-                completeExpectation.fulfill()
-            },
-            onComplete: { _ in
-                completeExpectation.fulfill()
-            },
-            onMessage: { message in
-                messages.append(message)
+            } else {
+                pubsub.onCompleted()
             }
-        )
+        }
+        client.onError { _ in
+            completeExpectation.fulfill()
+        }
+        client.onComplete { _ in
+            completeExpectation.fulfill()
+        }
+        client.onMessage { message in
+            messages.append(message)
+        }
         
         client.sendConnectionInit(payload: ConnectionInitAuth(authToken: ""))
         

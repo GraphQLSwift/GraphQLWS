@@ -42,6 +42,34 @@ class GraphqlWsTests: XCTestCase {
         )
     }
     
+    /// Tests that throwing in the authorization callback forces an unauthorized error
+    func testAuth() throws {
+        server.auth { payload in
+            throw TestError.couldBeAnything
+        }
+        
+        var messages = [String]()
+        let completeExpectation = XCTestExpectation()
+        
+        let client = Client(messenger: clientMessenger)
+        client.onMessage { message in
+            messages.append(message)
+            completeExpectation.fulfill()
+        }
+        
+        client.sendConnectionInit(
+            payload: ConnectionInitAuth(
+                authToken: ""
+            )
+        )
+        
+        wait(for: [completeExpectation], timeout: 2)
+        XCTAssertEqual(
+            messages,
+            ["4401: Unauthorized"]
+        )
+    }
+    
     func testSingleOp() throws {
         let id = UUID().description
         
@@ -139,5 +167,9 @@ class GraphqlWsTests: XCTestCase {
             5, // 1 connection_ack, 3 data, 1 complete
             "Messages: \(messages.description)"
         )
+    }
+    
+    enum TestError: Error {
+        case couldBeAnything
     }
 }

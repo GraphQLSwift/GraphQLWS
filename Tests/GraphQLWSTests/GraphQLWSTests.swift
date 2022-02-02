@@ -10,6 +10,7 @@ import XCTest
 
 class GraphqlWsTests: XCTestCase {
     var clientMessenger: TestMessenger!
+    var server: Server!
     
     override func setUp() {
         clientMessenger = TestMessenger()
@@ -22,7 +23,8 @@ class GraphqlWsTests: XCTestCase {
         let api = TestAPI()
         let context = TestContext()
         
-        let server = Server(
+        server = Server(
+            messenger: serverMessenger,
             auth: { _ in },
             onExecute: { graphQLRequest in
                 api.execute(
@@ -40,7 +42,6 @@ class GraphqlWsTests: XCTestCase {
             },
             onExit: {}
         )
-        server.attach(to: serverMessenger)
     }
     
     func testSingleOp() throws {
@@ -52,9 +53,7 @@ class GraphqlWsTests: XCTestCase {
         let completeExpectation = XCTestExpectation()
         
         let client = Client(
-            onMessage: { message in
-                messages.append(message)
-            },
+            messenger: clientMessenger,
             onConnectionAck: { _ in
                 self.clientMessenger.send(StartRequest(
                     payload: GraphQLRequest(
@@ -72,17 +71,13 @@ class GraphqlWsTests: XCTestCase {
             },
             onComplete: { _ in
                 completeExpectation.fulfill()
+            },
+            onMessage: { message in
+                messages.append(message)
             }
         )
-        client.attach(to: clientMessenger)
         
-        clientMessenger.send(
-            ConnectionInitRequest(
-                payload: ConnectionInitAuth(
-                    authToken: ""
-                )
-            ).toJSON(encoder)
-        )
+        client.sendConnectionInit(payload: ConnectionInitAuth(authToken: ""))
         
         wait(for: [completeExpectation], timeout: 2)
         XCTAssertEqual(
@@ -104,9 +99,7 @@ class GraphqlWsTests: XCTestCase {
         let dataIndexMax = 3
         
         let client = Client(
-            onMessage: { message in
-                messages.append(message)
-            },
+            messenger: clientMessenger,
             onConnectionAck: { _ in
                 self.clientMessenger.send(StartRequest(
                     payload: GraphQLRequest(
@@ -137,17 +130,13 @@ class GraphqlWsTests: XCTestCase {
             },
             onComplete: { _ in
                 completeExpectation.fulfill()
+            },
+            onMessage: { message in
+                messages.append(message)
             }
         )
-        client.attach(to: clientMessenger)
         
-        clientMessenger.send(
-            ConnectionInitRequest(
-                payload: ConnectionInitAuth(
-                    authToken: ""
-                )
-            ).toJSON(encoder)
-        )
+        client.sendConnectionInit(payload: ConnectionInitAuth(authToken: ""))
         
         wait(for: [completeExpectation], timeout: 2)
         XCTAssertEqual(

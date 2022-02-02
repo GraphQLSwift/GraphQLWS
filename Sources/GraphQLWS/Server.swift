@@ -7,8 +7,10 @@ import NIO
 import RxSwift
 
 /// Adds server-side [graphql-ws subprotocol](https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md)
-/// support, namely parsing and adding callbacks for each type of client request.
+/// support. This handles the majority of query processing according to the procol definition, allowing a few callbacks for customization.
 class Server {
+    let messenger: Messenger
+    
     let auth: (ConnectionInitRequest) throws -> Void
     let onExecute: (GraphQLRequest) -> EventLoopFuture<GraphQLResult>
     let onSubscribe: (GraphQLRequest) -> EventLoopFuture<SubscriptionResult>
@@ -21,24 +23,33 @@ class Server {
     let decoder = JSONDecoder()
     let encoder = GraphQLJSONEncoder()
     
+    /// Create a new server
+    ///
+    /// - Parameters:
+    ///   - messenger: The messenger to bind the server to.
+    ///   - auth: Callback run during `connection_init` resolution that allows authorization using the `payload`. Throw to indicate that authorization has failed.
+    ///   - onExecute: Callback run during `start` resolution for non-streaming queries. Typically this is `API.execute`.
+    ///   - onSubscribe: Callback run during `start` resolution for streaming queries. Typically this is `API.subscribe`.
+    ///   - onExit: Callback run when the communication is shut down, either by the client or server
+    ///   - onMessage: callback run on receipt of any message
     init(
+        messenger: Messenger,
         auth: @escaping (ConnectionInitRequest) throws -> Void,
         onExecute: @escaping (GraphQLRequest) -> EventLoopFuture<GraphQLResult>,
         onSubscribe: @escaping (GraphQLRequest) -> EventLoopFuture<SubscriptionResult>,
         onExit: @escaping () -> Void,
         onMessage: @escaping (String) -> Void = { _ in () }
     ) {
+        self.messenger = messenger
         self.auth = auth
         self.onExecute = onExecute
         self.onSubscribe = onSubscribe
         self.onExit = onExit
         self.onMessage = onMessage
-    }
-    
-    /// Attaches the responder to the provided Messenger in order to recieve and transmit messages
-    /// - Parameter messenger: The Messenger to use for communication
-    func attach(to messenger: Messenger) {
-        messenger.onRecieve { message in
+        
+        self.messenger.onRecieve { [weak self] message in
+            guard let self = self else { return }
+            
             self.onMessage(message)
             
             // Detect and ignore error responses.
@@ -49,7 +60,7 @@ class Server {
             
             guard let json = message.data(using: .utf8) else {
                 let error = GraphQLWSError.invalidEncoding()
-                messenger.error(error.message, code: error.code)
+                self.messenger.error(error.message, code: error.code)
                 return
             }
             
@@ -59,7 +70,7 @@ class Server {
             }
             catch {
                 let error = GraphQLWSError.noType()
-                messenger.error(error.message, code: error.code)
+                self.messenger.error(error.message, code: error.code)
                 return
             }
             
@@ -67,45 +78,45 @@ class Server {
                 case .GQL_CONNECTION_INIT:
                     guard let connectionInitRequest = try? self.decoder.decode(ConnectionInitRequest.self, from: json) else {
                         let error = GraphQLWSError.invalidRequestFormat(messageType: .GQL_CONNECTION_INIT)
-                        messenger.error(error.message, code: error.code)
+                        self.messenger.error(error.message, code: error.code)
                         return
                     }
-                    self.onConnectionInit(connectionInitRequest, messenger)
+                    self.onConnectionInit(connectionInitRequest)
                 case .GQL_START:
                     guard let startRequest = try? self.decoder.decode(StartRequest.self, from: json) else {
                         let error = GraphQLWSError.invalidRequestFormat(messageType: .GQL_START)
-                        messenger.error(error.message, code: error.code)
+                        self.messenger.error(error.message, code: error.code)
                         return
                     }
-                    self.onStart(startRequest, messenger)
+                    self.onStart(startRequest)
                 case .GQL_STOP:
                     guard let stopRequest = try? self.decoder.decode(StopRequest.self, from: json) else {
                         let error = GraphQLWSError.invalidRequestFormat(messageType: .GQL_STOP)
-                        messenger.error(error.message, code: error.code)
+                        self.messenger.error(error.message, code: error.code)
                         return
                     }
-                    self.onStop(stopRequest, messenger)
+                    self.onStop(stopRequest, self.messenger)
                 case .GQL_CONNECTION_TERMINATE:
                     guard let connectionTerminateRequest = try? self.decoder.decode(ConnectionTerminateRequest.self, from: json) else {
                         let error = GraphQLWSError.invalidRequestFormat(messageType: .GQL_CONNECTION_TERMINATE)
-                        messenger.error(error.message, code: error.code)
+                        self.messenger.error(error.message, code: error.code)
                         return
                     }
-                    self.onConnectionTerminate(connectionTerminateRequest, messenger)
+                    self.onConnectionTerminate(connectionTerminateRequest)
                 case .unknown:
                     let error = GraphQLWSError.invalidType()
-                    messenger.error(error.message, code: error.code)
+                    self.messenger.error(error.message, code: error.code)
             }
         }
         
         // Clean up any uncompleted subscriptions
         // TODO: Re-enable this
-//        messenger.onClose {
-//            _ = self.context?.cleanupSubscription()
-//        }
+        //        messenger.onClose {
+        //            _ = self.context?.cleanupSubscription()
+        //        }
     }
     
-    private func onConnectionInit(_ connectionInitRequest: ConnectionInitRequest, _ messenger: Messenger) {
+    private func onConnectionInit(_ connectionInitRequest: ConnectionInitRequest) {
         guard !initialized else {
             let error = GraphQLWSError.tooManyInitializations()
             messenger.error(error.message, code: error.code)
@@ -127,7 +138,7 @@ class Server {
         // TODO: Should we send the `ka` message?
     }
     
-    private func onStart(_ startRequest: StartRequest, _ messenger: Messenger) {
+    private func onStart(_ startRequest: StartRequest) {
         guard initialized else {
             let error = GraphQLWSError.notInitialized()
             messenger.error(error.message, code: error.code)
@@ -153,7 +164,7 @@ class Server {
                 guard let streamOpt = result.stream else {
                     // API issue - subscribe resolver isn't stream
                     let error = GraphQLWSError.internalAPIStreamIssue()
-                    messenger.error(error.message, code: error.code)
+                    self.messenger.error(error.message, code: error.code)
                     return
                 }
                 let stream = streamOpt as! ObservableSubscriptionEventStream
@@ -161,35 +172,35 @@ class Server {
                 observable.subscribe(
                     onNext: { resultFuture in
                         resultFuture.whenSuccess { result in
-                            messenger.send(DataResponse(result, id: id).toJSON(self.encoder))
+                            self.messenger.send(DataResponse(result, id: id).toJSON(self.encoder))
                         }
                         resultFuture.whenFailure { error in
-                            messenger.send(ErrorResponse(error, id: id).toJSON(self.encoder))
+                            self.messenger.send(ErrorResponse(error, id: id).toJSON(self.encoder))
                         }
                     },
                     onError: { error in
-                        messenger.send(ErrorResponse(error, id: id).toJSON(self.encoder))
+                        self.messenger.send(ErrorResponse(error, id: id).toJSON(self.encoder))
                     },
                     onCompleted: {
-                        messenger.send(CompleteResponse(id: id).toJSON(self.encoder))
-                        _ = messenger.close()
+                        self.messenger.send(CompleteResponse(id: id).toJSON(self.encoder))
+                        _ = self.messenger.close()
                     }
                 ).disposed(by: self.disposeBag)
             }
             subscribeFuture.whenFailure { error in
                 let error = GraphQLWSError.graphQLError(error)
-                _ = messenger.error(error.message, code: error.code)
+                _ = self.messenger.error(error.message, code: error.code)
             }
         }
         else {
             let executeFuture = onExecute(graphQLRequest)
             executeFuture.whenSuccess { result in
-                messenger.send(DataResponse(result, id: id).toJSON(self.encoder))
-                messenger.send(CompleteResponse(id: id).toJSON(self.encoder))
+                self.messenger.send(DataResponse(result, id: id).toJSON(self.encoder))
+                self.messenger.send(CompleteResponse(id: id).toJSON(self.encoder))
             }
             executeFuture.whenFailure { error in
-                messenger.send(ErrorResponse(error, id: id).toJSON(self.encoder))
-                messenger.send(CompleteResponse(id: id).toJSON(self.encoder))
+                self.messenger.send(ErrorResponse(error, id: id).toJSON(self.encoder))
+                self.messenger.send(CompleteResponse(id: id).toJSON(self.encoder))
             }
         }
     }
@@ -203,7 +214,7 @@ class Server {
         onExit()
     }
     
-    private func onConnectionTerminate(_: ConnectionTerminateRequest, _ messenger: Messenger) {
+    private func onConnectionTerminate(_: ConnectionTerminateRequest) {
         onExit()
         _ = messenger.close()
     }

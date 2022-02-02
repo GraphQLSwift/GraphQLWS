@@ -8,13 +8,13 @@ import GraphQL
 class Client {
     let messenger: Messenger
     
-    var onConnectionError: (ConnectionErrorResponse) -> Void = { _ in }
-    var onConnectionAck: (ConnectionAckResponse) -> Void = { _ in }
-    var onConnectionKeepAlive: (ConnectionKeepAliveResponse) -> Void = { _ in }
-    var onData: (DataResponse) -> Void = { _ in }
-    var onError: (ErrorResponse) -> Void = { _ in }
-    var onComplete: (CompleteResponse) -> Void = { _ in }
-    var onMessage: (String) -> Void = { _ in }
+    var onConnectionError: (ConnectionErrorResponse, Client) -> Void = { _, _ in }
+    var onConnectionAck: (ConnectionAckResponse, Client) -> Void = { _, _ in }
+    var onConnectionKeepAlive: (ConnectionKeepAliveResponse, Client) -> Void = { _, _ in }
+    var onData: (DataResponse, Client) -> Void = { _, _ in }
+    var onError: (ErrorResponse, Client) -> Void = { _, _ in }
+    var onComplete: (CompleteResponse, Client) -> Void = { _, _ in }
+    var onMessage: (String, Client) -> Void = { _, _ in }
     
     let encoder = GraphQLJSONEncoder()
     let decoder = JSONDecoder()
@@ -31,7 +31,7 @@ class Client {
         self.messenger.onRecieve { [weak self] message in
             guard let self = self else { return }
             
-            self.onMessage(message)
+            self.onMessage(message, self)
             
             // Detect and ignore error responses.
             if message.starts(with: "44") {
@@ -62,42 +62,42 @@ class Client {
                         self.messenger.error(error.message, code: error.code)
                         return
                     }
-                    self.onConnectionError(connectionErrorResponse)
+                    self.onConnectionError(connectionErrorResponse, self)
                 case .GQL_CONNECTION_ACK:
                     guard let connectionAckResponse = try? self.decoder.decode(ConnectionAckResponse.self, from: json) else {
                         let error = GraphQLWSError.invalidResponseFormat(messageType: .GQL_CONNECTION_ACK)
                         self.messenger.error(error.message, code: error.code)
                         return
                     }
-                    self.onConnectionAck(connectionAckResponse)
+                    self.onConnectionAck(connectionAckResponse, self)
                 case .GQL_CONNECTION_KEEP_ALIVE:
                     guard let connectionKeepAliveResponse = try? self.decoder.decode(ConnectionKeepAliveResponse.self, from: json) else {
                         let error = GraphQLWSError.invalidResponseFormat(messageType: .GQL_CONNECTION_KEEP_ALIVE)
                         self.messenger.error(error.message, code: error.code)
                         return
                     }
-                    self.onConnectionKeepAlive(connectionKeepAliveResponse)
+                    self.onConnectionKeepAlive(connectionKeepAliveResponse, self)
                 case .GQL_DATA:
                     guard let nextResponse = try? self.decoder.decode(DataResponse.self, from: json) else {
                         let error = GraphQLWSError.invalidResponseFormat(messageType: .GQL_DATA)
                         self.messenger.error(error.message, code: error.code)
                         return
                     }
-                    self.onData(nextResponse)
+                    self.onData(nextResponse, self)
                 case .GQL_ERROR:
                     guard let errorResponse = try? self.decoder.decode(ErrorResponse.self, from: json) else {
                         let error = GraphQLWSError.invalidResponseFormat(messageType: .GQL_ERROR)
                         self.messenger.error(error.message, code: error.code)
                         return
                     }
-                    self.onError(errorResponse)
+                    self.onError(errorResponse, self)
                 case .GQL_COMPLETE:
                     guard let completeResponse = try? self.decoder.decode(CompleteResponse.self, from: json) else {
                         let error = GraphQLWSError.invalidResponseFormat(messageType: .GQL_COMPLETE)
                         self.messenger.error(error.message, code: error.code)
                         return
                     }
-                    self.onComplete(completeResponse)
+                    self.onComplete(completeResponse, self)
                 case .unknown:
                     let error = GraphQLWSError.invalidType()
                     self.messenger.error(error.message, code: error.code)
@@ -107,43 +107,43 @@ class Client {
     
     /// Define the callback run on receipt of a `connection_error` message
     /// - Parameter callback: The callback to assign
-    func onConnectionError(_ callback: @escaping (ConnectionErrorResponse) -> Void) {
+    func onConnectionError(_ callback: @escaping (ConnectionErrorResponse, Client) -> Void) {
         self.onConnectionError = callback
     }
     
     /// Define the callback run on receipt of a `connection_ack` message
     /// - Parameter callback: The callback to assign
-    func onConnectionAck(_ callback: @escaping (ConnectionAckResponse) -> Void) {
+    func onConnectionAck(_ callback: @escaping (ConnectionAckResponse, Client) -> Void) {
         self.onConnectionAck = callback
     }
     
     /// Define the callback run on receipt of a `connection_ka` message
     /// - Parameter callback: The callback to assign
-    func onConnectionKeepAlive(_ callback: @escaping (ConnectionKeepAliveResponse) -> Void) {
+    func onConnectionKeepAlive(_ callback: @escaping (ConnectionKeepAliveResponse, Client) -> Void) {
         self.onConnectionKeepAlive = callback
     }
     
     /// Define the callback run on receipt of a `data` message
     /// - Parameter callback: The callback to assign
-    func onData(_ callback: @escaping (DataResponse) -> Void) {
+    func onData(_ callback: @escaping (DataResponse, Client) -> Void) {
         self.onData = callback
     }
     
     /// Define the callback run on receipt of an `error` message
     /// - Parameter callback: The callback to assign
-    func onError(_ callback: @escaping (ErrorResponse) -> Void) {
+    func onError(_ callback: @escaping (ErrorResponse, Client) -> Void) {
         self.onError = callback
     }
     
     /// Define the callback run on receipt of any message
     /// - Parameter callback: The callback to assign
-    func onComplete(_ callback: @escaping (CompleteResponse) -> Void) {
+    func onComplete(_ callback: @escaping (CompleteResponse, Client) -> Void) {
         self.onComplete = callback
     }
     
     /// Define the callback run on receipt of a `complete` message
     /// - Parameter callback: The callback to assign
-    func onMessage(_ callback: @escaping (String) -> Void) {
+    func onMessage(_ callback: @escaping (String, Client) -> Void) {
         self.onMessage = callback
     }
     

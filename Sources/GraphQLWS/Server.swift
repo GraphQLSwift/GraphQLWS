@@ -6,9 +6,8 @@ import GraphQLRxSwift
 import NIO
 import RxSwift
 
-/// Adds server-side [graphql-ws subprotocol](https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md)
-/// support. This handles the majority of query processing according to the procol definition, allowing a few callbacks for customization.
-class Server {
+/// Server implements the server-side portion of the protocol, allowing a few callbacks for customization.
+public class Server {
     let messenger: Messenger
     
     let onExecute: (GraphQLRequest) -> EventLoopFuture<GraphQLResult>
@@ -30,7 +29,7 @@ class Server {
     ///   - messenger: The messenger to bind the server to.
     ///   - onExecute: Callback run during `start` resolution for non-streaming queries. Typically this is `API.execute`.
     ///   - onSubscribe: Callback run during `start` resolution for streaming queries. Typically this is `API.subscribe`.
-    init(
+    public init(
         messenger: Messenger,
         onExecute: @escaping (GraphQLRequest) -> EventLoopFuture<GraphQLResult>,
         onSubscribe: @escaping (GraphQLRequest) -> EventLoopFuture<SubscriptionResult>
@@ -111,19 +110,19 @@ class Server {
     /// Define the callback run during `connection_init` resolution that allows authorization using the `payload`.
     /// Throw to indicate that authorization has failed.
     /// - Parameter callback: The callback to assign
-    func auth(_ callback: @escaping (ConnectionInitRequest) throws -> Void) {
+    public func auth(_ callback: @escaping (ConnectionInitRequest) throws -> Void) {
         self.auth = callback
     }
     
     /// Define the callback run when the communication is shut down, either by the client or server
     /// - Parameter callback: The callback to assign
-    func onExit(_ callback: @escaping () -> Void) {
+    public func onExit(_ callback: @escaping () -> Void) {
         self.onExit = callback
     }
     
     /// Define the callback run on receipt of any message
     /// - Parameter callback: The callback to assign
-    func onMessage(_ callback: @escaping (String) -> Void) {
+    public func onMessage(_ callback: @escaping (String) -> Void) {
         self.onMessage = callback
     }
     

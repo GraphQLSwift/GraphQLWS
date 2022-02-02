@@ -3,9 +3,8 @@
 import Foundation
 import GraphQL
 
-/// Adds client-side [graphql-ws protocol](https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md)
-/// support, namely parsing and adding callbacks for each type of server respose.
-class Client {
+/// Client is an open-ended implementation of the client side of the protocol. It parses and adds callbacks for each type of server respose.
+public class Client {
     let messenger: Messenger
     
     var onConnectionError: (ConnectionErrorResponse, Client) -> Void = { _, _ in }
@@ -23,7 +22,7 @@ class Client {
     ///
     /// - Parameters:
     ///   - messenger: The messenger to bind the client to.
-    init(
+    public init(
         messenger: Messenger
     ) {
         self.messenger = messenger
@@ -107,48 +106,48 @@ class Client {
     
     /// Define the callback run on receipt of a `connection_error` message
     /// - Parameter callback: The callback to assign
-    func onConnectionError(_ callback: @escaping (ConnectionErrorResponse, Client) -> Void) {
+    public func onConnectionError(_ callback: @escaping (ConnectionErrorResponse, Client) -> Void) {
         self.onConnectionError = callback
     }
     
     /// Define the callback run on receipt of a `connection_ack` message
     /// - Parameter callback: The callback to assign
-    func onConnectionAck(_ callback: @escaping (ConnectionAckResponse, Client) -> Void) {
+    public func onConnectionAck(_ callback: @escaping (ConnectionAckResponse, Client) -> Void) {
         self.onConnectionAck = callback
     }
     
     /// Define the callback run on receipt of a `connection_ka` message
     /// - Parameter callback: The callback to assign
-    func onConnectionKeepAlive(_ callback: @escaping (ConnectionKeepAliveResponse, Client) -> Void) {
+    public func onConnectionKeepAlive(_ callback: @escaping (ConnectionKeepAliveResponse, Client) -> Void) {
         self.onConnectionKeepAlive = callback
     }
     
     /// Define the callback run on receipt of a `data` message
     /// - Parameter callback: The callback to assign
-    func onData(_ callback: @escaping (DataResponse, Client) -> Void) {
+    public func onData(_ callback: @escaping (DataResponse, Client) -> Void) {
         self.onData = callback
     }
     
     /// Define the callback run on receipt of an `error` message
     /// - Parameter callback: The callback to assign
-    func onError(_ callback: @escaping (ErrorResponse, Client) -> Void) {
+    public func onError(_ callback: @escaping (ErrorResponse, Client) -> Void) {
         self.onError = callback
     }
     
     /// Define the callback run on receipt of any message
     /// - Parameter callback: The callback to assign
-    func onComplete(_ callback: @escaping (CompleteResponse, Client) -> Void) {
+    public func onComplete(_ callback: @escaping (CompleteResponse, Client) -> Void) {
         self.onComplete = callback
     }
     
     /// Define the callback run on receipt of a `complete` message
     /// - Parameter callback: The callback to assign
-    func onMessage(_ callback: @escaping (String, Client) -> Void) {
+    public func onMessage(_ callback: @escaping (String, Client) -> Void) {
         self.onMessage = callback
     }
     
     /// Send a `connection_init` request through the messenger
-    func sendConnectionInit(payload: ConnectionInitAuth?) {
+    public func sendConnectionInit(payload: ConnectionInitAuth?) {
         messenger.send(
             ConnectionInitRequest(
                 payload: payload
@@ -157,7 +156,7 @@ class Client {
     }
     
     /// Send a `start` request through the messenger
-    func sendStart(payload: GraphQLRequest, id: String) {
+    public func sendStart(payload: GraphQLRequest, id: String) {
         messenger.send(
             StartRequest(
                 payload: payload,
@@ -167,7 +166,7 @@ class Client {
     }
     
     /// Send a `stop` request through the messenger
-    func sendStop(id: String) {
+    public func sendStop(id: String) {
         messenger.send(
             StopRequest(
                 id: id
@@ -176,7 +175,7 @@ class Client {
     }
     
     /// Send a `connection_terminate` request through the messenger
-    func sendConnectionTerminate() {
+    public func sendConnectionTerminate() {
         messenger.send(
             ConnectionTerminateRequest().toJSON(encoder)
         )

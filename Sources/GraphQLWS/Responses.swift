@@ -3,17 +3,15 @@
 import Foundation
 import GraphQL
 
-/// Reference for graphql-ws protocol: https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md
-
 /// A general response. This object's type is used to triage to other, more specific response objects.
-struct Response: Equatable, JsonEncodable {
+public struct Response: Equatable, JsonEncodable {
     let type: ResponseMessageType
 }
 
 /// A websocket `connection_ack` response from the server to the client
-struct ConnectionAckResponse: Equatable, JsonEncodable {
+public struct ConnectionAckResponse: Equatable, JsonEncodable {
     let type: ResponseMessageType
-    let payload: [String: Map]?
+    public let payload: [String: Map]?
     
     init(_ payload: [String: Map]? = nil) {
         self.type = .GQL_CONNECTION_ACK
@@ -22,9 +20,9 @@ struct ConnectionAckResponse: Equatable, JsonEncodable {
 }
 
 /// A websocket `connection_error` response from the server to the client
-struct ConnectionErrorResponse: Equatable, JsonEncodable {
+public struct ConnectionErrorResponse: Equatable, JsonEncodable {
     let type: ResponseMessageType
-    let payload: [String: Map]?
+    public let payload: [String: Map]?
     
     init(_ payload: [String: Map]? = nil) {
         self.type = .GQL_CONNECTION_ERROR
@@ -33,9 +31,9 @@ struct ConnectionErrorResponse: Equatable, JsonEncodable {
 }
 
 /// A websocket `ka` response from the server to the client
-struct ConnectionKeepAliveResponse: Equatable, JsonEncodable {
+public struct ConnectionKeepAliveResponse: Equatable, JsonEncodable {
     let type: ResponseMessageType
-    let payload: [String: Map]?
+    public let payload: [String: Map]?
     
     init(_ payload: [String: Map]? = nil) {
         self.type = .GQL_CONNECTION_KEEP_ALIVE
@@ -44,10 +42,10 @@ struct ConnectionKeepAliveResponse: Equatable, JsonEncodable {
 }
 
 /// A websocket `data` response from the server to the client
-struct DataResponse: Equatable, JsonEncodable {
+public struct DataResponse: Equatable, JsonEncodable {
     let type: ResponseMessageType
-    let payload: GraphQLResult?
-    let id: String
+    public let payload: GraphQLResult?
+    public let id: String
     
     init(_ payload: GraphQLResult? = nil, id: String) {
         self.type = .GQL_DATA
@@ -57,9 +55,9 @@ struct DataResponse: Equatable, JsonEncodable {
 }
 
 /// A websocket `complete` response from the server to the client
-struct CompleteResponse: Equatable, JsonEncodable {
+public struct CompleteResponse: Equatable, JsonEncodable {
     let type: ResponseMessageType
-    let id: String
+    public let id: String
     
     init(_: GraphQLResult? = nil, id: String) {
         self.type = .GQL_COMPLETE
@@ -68,10 +66,10 @@ struct CompleteResponse: Equatable, JsonEncodable {
 }
 
 /// A websocket `error` response from the server to the client
-struct ErrorResponse: Equatable, JsonEncodable {
+public struct ErrorResponse: Equatable, JsonEncodable {
     let type: ResponseMessageType
-    let payload: [GraphQLError]
-    let id: String
+    public let payload: [GraphQLError]
+    public let id: String
     
     init(_ errors: [Error], id: String) {
         let graphQLErrors = errors.map { error -> GraphQLError in

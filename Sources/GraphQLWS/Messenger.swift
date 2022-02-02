@@ -4,7 +4,7 @@ import Foundation
 import NIO
 
 /// Protocol for an object that can send and recieve messages
-protocol Messenger {
+public protocol Messenger {
     func send<S>(_ message: S) -> Void where S: Collection, S.Element == Character
     func onRecieve(callback: @escaping (String) -> Void) -> Void
     func close() -> Void

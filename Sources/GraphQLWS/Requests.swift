@@ -3,8 +3,6 @@
 import Foundation
 import GraphQL
 
-/// Reference for graphql-ws protocol: https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md
-///
 /// We also require that an 'authToken' field is provided in the 'payload' during the connection
 /// init message. For example:
 /// ```
@@ -22,14 +20,15 @@ struct Request: Equatable, JsonEncodable {
 }
 
 /// A websocket `connection_init` request from the client to the server
-struct ConnectionInitRequest: Equatable, JsonEncodable {
+public struct ConnectionInitRequest: Equatable, JsonEncodable {
     var type = RequestMessageType.GQL_CONNECTION_INIT
-    let payload: ConnectionInitAuth?
+    public let payload: ConnectionInitAuth?
 }
 
+// TODO: Make this structure user-defined
 /// Authorization format for a websocket `connection_init` request from the client to the server
-struct ConnectionInitAuth: Equatable, JsonEncodable {
-    let authToken: String
+public struct ConnectionInitAuth: Equatable, JsonEncodable {
+    public let authToken: String
 }
 
 /// A websocket `start` request from the client to the server

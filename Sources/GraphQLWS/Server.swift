@@ -8,7 +8,8 @@ import RxSwift
 
 /// Server implements the server-side portion of the protocol, allowing a few callbacks for customization.
 public class Server {
-    let messenger: Messenger
+    // We keep this weak because we strongly inject this object into the messenger callback
+    weak var messenger: Messenger?
     
     let onExecute: (GraphQLRequest) -> EventLoopFuture<GraphQLResult>
     let onSubscribe: (GraphQLRequest) -> EventLoopFuture<SubscriptionResult>
@@ -38,8 +39,8 @@ public class Server {
         self.onExecute = onExecute
         self.onSubscribe = onSubscribe
         
-        self.messenger.onRecieve { [weak self] message in
-            guard let self = self else { return }
+        messenger.onRecieve { message in
+            guard let messenger = self.messenger else { return }
             
             self.onMessage(message)
             
@@ -51,7 +52,7 @@ public class Server {
             
             guard let json = message.data(using: .utf8) else {
                 let error = GraphQLWSError.invalidEncoding()
-                self.messenger.error(error.message, code: error.code)
+                messenger.error(error.message, code: error.code)
                 return
             }
             
@@ -61,7 +62,7 @@ public class Server {
             }
             catch {
                 let error = GraphQLWSError.noType()
-                self.messenger.error(error.message, code: error.code)
+                messenger.error(error.message, code: error.code)
                 return
             }
             
@@ -69,34 +70,34 @@ public class Server {
                 case .GQL_CONNECTION_INIT:
                     guard let connectionInitRequest = try? self.decoder.decode(ConnectionInitRequest.self, from: json) else {
                         let error = GraphQLWSError.invalidRequestFormat(messageType: .GQL_CONNECTION_INIT)
-                        self.messenger.error(error.message, code: error.code)
+                        messenger.error(error.message, code: error.code)
                         return
                     }
-                    self.onConnectionInit(connectionInitRequest)
+                    self.onConnectionInit(connectionInitRequest, messenger)
                 case .GQL_START:
                     guard let startRequest = try? self.decoder.decode(StartRequest.self, from: json) else {
                         let error = GraphQLWSError.invalidRequestFormat(messageType: .GQL_START)
-                        self.messenger.error(error.message, code: error.code)
+                        messenger.error(error.message, code: error.code)
                         return
                     }
-                    self.onStart(startRequest)
+                    self.onStart(startRequest, messenger)
                 case .GQL_STOP:
                     guard let stopRequest = try? self.decoder.decode(StopRequest.self, from: json) else {
                         let error = GraphQLWSError.invalidRequestFormat(messageType: .GQL_STOP)
-                        self.messenger.error(error.message, code: error.code)
+                        messenger.error(error.message, code: error.code)
                         return
                     }
-                    self.onStop(stopRequest, self.messenger)
+                    self.onStop(stopRequest, messenger)
                 case .GQL_CONNECTION_TERMINATE:
                     guard let connectionTerminateRequest = try? self.decoder.decode(ConnectionTerminateRequest.self, from: json) else {
                         let error = GraphQLWSError.invalidRequestFormat(messageType: .GQL_CONNECTION_TERMINATE)
-                        self.messenger.error(error.message, code: error.code)
+                        messenger.error(error.message, code: error.code)
                         return
                     }
-                    self.onConnectionTerminate(connectionTerminateRequest)
+                    self.onConnectionTerminate(connectionTerminateRequest, messenger)
                 case .unknown:
                     let error = GraphQLWSError.invalidType()
-                    self.messenger.error(error.message, code: error.code)
+                    messenger.error(error.message, code: error.code)
             }
         }
         
@@ -126,7 +127,7 @@ public class Server {
         self.onMessage = callback
     }
     
-    private func onConnectionInit(_ connectionInitRequest: ConnectionInitRequest) {
+    private func onConnectionInit(_ connectionInitRequest: ConnectionInitRequest, _ messenger: Messenger) {
         guard !initialized else {
             let error = GraphQLWSError.tooManyInitializations()
             messenger.error(error.message, code: error.code)
@@ -148,7 +149,7 @@ public class Server {
         // TODO: Should we send the `ka` message?
     }
     
-    private func onStart(_ startRequest: StartRequest) {
+    private func onStart(_ startRequest: StartRequest, _ messenger: Messenger) {
         guard initialized else {
             let error = GraphQLWSError.notInitialized()
             messenger.error(error.message, code: error.code)
@@ -169,48 +170,50 @@ public class Server {
         
         if isStreaming {
             let subscribeFuture = onSubscribe(graphQLRequest)
-            subscribeFuture.whenSuccess { [weak self] result in
-                guard let self = self else { return }
+            subscribeFuture.whenSuccess { result in
                 guard let streamOpt = result.stream else {
                     // API issue - subscribe resolver isn't stream
                     let error = GraphQLWSError.internalAPIStreamIssue()
-                    self.messenger.error(error.message, code: error.code)
+                    messenger.error(error.message, code: error.code)
                     return
                 }
                 let stream = streamOpt as! ObservableSubscriptionEventStream
                 let observable = stream.observable
                 observable.subscribe(
-                    onNext: { resultFuture in
+                    onNext: { [weak self] resultFuture in
+                        guard let self = self, let messenger = self.messenger else { return }
                         resultFuture.whenSuccess { result in
-                            self.messenger.send(DataResponse(result, id: id).toJSON(self.encoder))
+                            messenger.send(DataResponse(result, id: id).toJSON(self.encoder))
                         }
                         resultFuture.whenFailure { error in
-                            self.messenger.send(ErrorResponse(error, id: id).toJSON(self.encoder))
+                            messenger.send(ErrorResponse(error, id: id).toJSON(self.encoder))
                         }
                     },
-                    onError: { error in
-                        self.messenger.send(ErrorResponse(error, id: id).toJSON(self.encoder))
+                    onError: { [weak self] error in
+                        guard let self = self, let messenger = self.messenger else { return }
+                        messenger.send(ErrorResponse(error, id: id).toJSON(self.encoder))
                     },
-                    onCompleted: {
-                        self.messenger.send(CompleteResponse(id: id).toJSON(self.encoder))
-                        _ = self.messenger.close()
+                    onCompleted: { [weak self] in
+                        guard let self = self, let messenger = self.messenger else { return }
+                        messenger.send(CompleteResponse(id: id).toJSON(self.encoder))
+                        _ = messenger.close()
                     }
                 ).disposed(by: self.disposeBag)
             }
             subscribeFuture.whenFailure { error in
                 let error = GraphQLWSError.graphQLError(error)
-                _ = self.messenger.error(error.message, code: error.code)
+                _ = messenger.error(error.message, code: error.code)
             }
         }
         else {
             let executeFuture = onExecute(graphQLRequest)
             executeFuture.whenSuccess { result in
-                self.messenger.send(DataResponse(result, id: id).toJSON(self.encoder))
-                self.messenger.send(CompleteResponse(id: id).toJSON(self.encoder))
+                messenger.send(DataResponse(result, id: id).toJSON(self.encoder))
+                messenger.send(CompleteResponse(id: id).toJSON(self.encoder))
             }
             executeFuture.whenFailure { error in
-                self.messenger.send(ErrorResponse(error, id: id).toJSON(self.encoder))
-                self.messenger.send(CompleteResponse(id: id).toJSON(self.encoder))
+                messenger.send(ErrorResponse(error, id: id).toJSON(self.encoder))
+                messenger.send(CompleteResponse(id: id).toJSON(self.encoder))
             }
         }
     }
@@ -224,7 +227,7 @@ public class Server {
         onExit()
     }
     
-    private func onConnectionTerminate(_: ConnectionTerminateRequest) {
+    private func onConnectionTerminate(_: ConnectionTerminateRequest, _ messenger: Messenger) {
         onExit()
         _ = messenger.close()
     }

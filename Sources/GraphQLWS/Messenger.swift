@@ -4,7 +4,8 @@ import Foundation
 import NIO
 
 /// Protocol for an object that can send and recieve messages
-public protocol Messenger {
+public protocol Messenger: AnyObject {
+    // AnyObject compliance requires that the implementing object is a class and we can reference it weakly
     func send<S>(_ message: S) -> Void where S: Collection, S.Element == Character
     func onRecieve(callback: @escaping (String) -> Void) -> Void
     func close() -> Void

@@ -29,6 +29,10 @@ public struct ConnectionInitRequest: Equatable, JsonEncodable {
 /// Authorization format for a websocket `connection_init` request from the client to the server
 public struct ConnectionInitAuth: Equatable, JsonEncodable {
     public let authToken: String
+    
+    public init(authToken: String) {
+        self.authToken = authToken
+    }
 }
 
 /// A websocket `start` request from the client to the server

@@ -59,7 +59,7 @@ public struct CompleteResponse: Equatable, JsonEncodable {
     let type: ResponseMessageType
     public let id: String
     
-    init(_: GraphQLResult? = nil, id: String) {
+    init(id: String) {
         self.type = .GQL_COMPLETE
         self.id = id
     }
@@ -83,14 +83,6 @@ public struct ErrorResponse: Equatable, JsonEncodable {
         self.type = .GQL_ERROR
         self.payload = graphQLErrors
         self.id = id
-    }
-    
-    init(_ error: Error, id: String) {
-        self.init([error], id: id)
-    }
-    
-    init(_ errorMessage: String, id: String) {
-        self.init(GraphQLError(message: errorMessage), id: id)
     }
 }
 

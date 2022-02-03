@@ -2,9 +2,9 @@
 
 struct GraphQLWSError: Error {
     let message: String
-    let code: Int
+    let code: ErrorCode
     
-    init(_ message: String, code: Int) {
+    init(_ message: String, code: ErrorCode) {
         self.message = message
         self.code = code
     }
@@ -12,77 +12,104 @@ struct GraphQLWSError: Error {
     static func unauthorized() -> Self {
         return self.init(
             "Unauthorized",
-            code: 4401
-        )
-    }
-    
-    static func tooManyInitializations() -> Self {
-        return self.init(
-            "Too many initialisation requests",
-            code: 4429
+            code: .unauthorized
         )
     }
     
     static func notInitialized() -> Self {
         return self.init(
             "Connection not initialized",
-            code: 4407
+            code: .notInitialized
+        )
+    }
+    
+    static func tooManyInitializations() -> Self {
+        return self.init(
+            "Too many initialisation requests",
+            code: .tooManyInitializations
         )
     }
     
     static func subscriberAlreadyExists(id: String) -> Self {
         return self.init(
             "Subscriber for \(id) already exists",
-            code: 4409
+            code: .subscriberAlreadyExists
         )
     }
     
     static func invalidEncoding() -> Self {
         return self.init(
             "Message was not encoded in UTF8",
-            code: 4400
+            code: .invalidEncoding
         )
     }
     
     static func noType() -> Self {
         return self.init(
             "Message has no 'type' field",
-            code: 4400
+            code: .noType
         )
     }
     
     static func invalidType() -> Self {
         return self.init(
             "Message 'type' value does not match supported types",
-            code: 4400
+            code: .invalidType
         )
     }
     
     static func invalidRequestFormat(messageType: RequestMessageType) -> Self {
         return self.init(
             "Request message doesn't match '\(messageType.rawValue)' JSON format",
-            code: 4400
+            code: .invalidRequestFormat
         )
     }
     
     static func invalidResponseFormat(messageType: ResponseMessageType) -> Self {
         return self.init(
             "Response message doesn't match '\(messageType.rawValue)' JSON format",
-            code: 4400
+            code: .invalidResponseFormat
         )
     }
     
     static func internalAPIStreamIssue() -> Self {
         return self.init(
             "API Response did not result in a stream type",
-            code: 4400
+            code: .internalAPIStreamIssue
         )
     }
     
     static func graphQLError(_ error: Error) -> Self {
         return self.init(
             "\(error)",
-            code: 4400
+            code: .graphQLError
         )
+    }
+}
+
+/// Error codes for miscellaneous issues
+public enum ErrorCode: Int, CustomStringConvertible {
+    // Miscellaneous
+    case miscellaneous = 4400
+    
+    // Internal errors
+    case graphQLError = 4401
+    case internalAPIStreamIssue = 4402
+    
+    // Message errors
+    case invalidEncoding = 4410
+    case noType = 4411
+    case invalidType = 4412
+    case invalidRequestFormat = 4413
+    case invalidResponseFormat = 4414
+    
+    // Initialization errors
+    case unauthorized = 4430
+    case notInitialized = 4431
+    case tooManyInitializations = 4432
+    case subscriberAlreadyExists = 4433
+    
+    public var description: String {
+        return "\(self.rawValue)"
     }
 }

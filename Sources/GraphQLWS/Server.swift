@@ -51,8 +51,7 @@ public class Server {
             }
             
             guard let json = message.data(using: .utf8) else {
-                let error = GraphQLWSError.invalidEncoding()
-                messenger.error(error.message, code: error.code)
+                self.error(.invalidEncoding())
                 return
             }
             
@@ -61,43 +60,37 @@ public class Server {
                 request = try self.decoder.decode(Request.self, from: json)
             }
             catch {
-                let error = GraphQLWSError.noType()
-                messenger.error(error.message, code: error.code)
+                self.error(.noType())
                 return
             }
             
             switch request.type {
                 case .GQL_CONNECTION_INIT:
                     guard let connectionInitRequest = try? self.decoder.decode(ConnectionInitRequest.self, from: json) else {
-                        let error = GraphQLWSError.invalidRequestFormat(messageType: .GQL_CONNECTION_INIT)
-                        messenger.error(error.message, code: error.code)
+                        self.error(.invalidRequestFormat(messageType: .GQL_CONNECTION_INIT))
                         return
                     }
                     self.onConnectionInit(connectionInitRequest, messenger)
                 case .GQL_START:
                     guard let startRequest = try? self.decoder.decode(StartRequest.self, from: json) else {
-                        let error = GraphQLWSError.invalidRequestFormat(messageType: .GQL_START)
-                        messenger.error(error.message, code: error.code)
+                        self.error(.invalidRequestFormat(messageType: .GQL_START))
                         return
                     }
                     self.onStart(startRequest, messenger)
                 case .GQL_STOP:
                     guard let stopRequest = try? self.decoder.decode(StopRequest.self, from: json) else {
-                        let error = GraphQLWSError.invalidRequestFormat(messageType: .GQL_STOP)
-                        messenger.error(error.message, code: error.code)
+                        self.error(.invalidRequestFormat(messageType: .GQL_STOP))
                         return
                     }
                     self.onStop(stopRequest, messenger)
                 case .GQL_CONNECTION_TERMINATE:
                     guard let connectionTerminateRequest = try? self.decoder.decode(ConnectionTerminateRequest.self, from: json) else {
-                        let error = GraphQLWSError.invalidRequestFormat(messageType: .GQL_CONNECTION_TERMINATE)
-                        messenger.error(error.message, code: error.code)
+                        self.error(.invalidRequestFormat(messageType: .GQL_CONNECTION_TERMINATE))
                         return
                     }
                     self.onConnectionTerminate(connectionTerminateRequest, messenger)
                 case .unknown:
-                    let error = GraphQLWSError.invalidType()
-                    messenger.error(error.message, code: error.code)
+                    self.error(.invalidType())
             }
         }
     }
@@ -123,8 +116,7 @@ public class Server {
     
     private func onConnectionInit(_ connectionInitRequest: ConnectionInitRequest, _ messenger: Messenger) {
         guard !initialized else {
-            let error = GraphQLWSError.tooManyInitializations()
-            messenger.error(error.message, code: error.code)
+            self.error(.tooManyInitializations())
             return
         }
         
@@ -132,8 +124,7 @@ public class Server {
             try self.auth(connectionInitRequest)
         }
         catch {
-            let error = GraphQLWSError.unauthorized()
-            messenger.error(error.message, code: error.code)
+            self.error(.unauthorized())
             return
         }
         initialized = true
@@ -143,8 +134,7 @@ public class Server {
     
     private func onStart(_ startRequest: StartRequest, _ messenger: Messenger) {
         guard initialized else {
-            let error = GraphQLWSError.notInitialized()
-            messenger.error(error.message, code: error.code)
+            self.error(.notInitialized())
             return
         }
         
@@ -165,8 +155,7 @@ public class Server {
             subscribeFuture.whenSuccess { result in
                 guard let streamOpt = result.stream else {
                     // API issue - subscribe resolver isn't stream
-                    let error = GraphQLWSError.internalAPIStreamIssue()
-                    messenger.error(error.message, code: error.code)
+                    self.error(.internalAPIStreamIssue())
                     return
                 }
                 let stream = streamOpt as! ObservableSubscriptionEventStream
@@ -193,8 +182,7 @@ public class Server {
                 ).disposed(by: self.disposeBag)
             }
             subscribeFuture.whenFailure { error in
-                let error = GraphQLWSError.graphQLError(error)
-                _ = messenger.error(error.message, code: error.code)
+                self.error(.graphQLError(error))
             }
         }
         else {
@@ -214,8 +202,7 @@ public class Server {
     
     private func onStop(_: StopRequest, _ messenger: Messenger) {
         guard initialized else {
-            let error = GraphQLWSError.notInitialized()
-            messenger.error(error.message, code: error.code)
+            self.error(.notInitialized())
             return
         }
         onExit()
@@ -290,5 +277,11 @@ public class Server {
     /// Send an `error` response through the messenger
     private func sendError(_ errorMessage: String, id: String) {
         self.sendError(GraphQLError(message: errorMessage), id: id)
+    }
+    
+    /// Send an error through the messenger and close the connection
+    private func error(_ error: GraphQLWSError) {
+        guard let messenger = messenger else { return }
+        messenger.error(error.message, code: error.code.rawValue)
     }
 }

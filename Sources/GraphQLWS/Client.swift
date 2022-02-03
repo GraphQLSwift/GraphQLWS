@@ -28,8 +28,6 @@ public class Client {
     ) {
         self.messenger = messenger
         messenger.onRecieve { message in
-            guard let messenger = self.messenger else { return }
-            
             self.onMessage(message, self)
             
             // Detect and ignore error responses.
@@ -39,8 +37,7 @@ public class Client {
             }
             
             guard let json = message.data(using: .utf8) else {
-                let error = GraphQLWSError.invalidEncoding()
-                messenger.error(error.message, code: error.code)
+                self.error(.invalidEncoding())
                 return
             }
             
@@ -49,57 +46,49 @@ public class Client {
                 response = try self.decoder.decode(Response.self, from: json)
             }
             catch {
-                let error = GraphQLWSError.noType()
-                messenger.error(error.message, code: error.code)
+                self.error(.noType())
                 return
             }
             
             switch response.type {
                 case .GQL_CONNECTION_ERROR:
                     guard let connectionErrorResponse = try? self.decoder.decode(ConnectionErrorResponse.self, from: json) else {
-                        let error = GraphQLWSError.invalidResponseFormat(messageType: .GQL_CONNECTION_ERROR)
-                        messenger.error(error.message, code: error.code)
+                        self.error(.invalidResponseFormat(messageType: .GQL_CONNECTION_ERROR))
                         return
                     }
                     self.onConnectionError(connectionErrorResponse, self)
                 case .GQL_CONNECTION_ACK:
                     guard let connectionAckResponse = try? self.decoder.decode(ConnectionAckResponse.self, from: json) else {
-                        let error = GraphQLWSError.invalidResponseFormat(messageType: .GQL_CONNECTION_ACK)
-                        messenger.error(error.message, code: error.code)
+                        self.error(.invalidResponseFormat(messageType: .GQL_CONNECTION_ERROR))
                         return
                     }
                     self.onConnectionAck(connectionAckResponse, self)
                 case .GQL_CONNECTION_KEEP_ALIVE:
                     guard let connectionKeepAliveResponse = try? self.decoder.decode(ConnectionKeepAliveResponse.self, from: json) else {
-                        let error = GraphQLWSError.invalidResponseFormat(messageType: .GQL_CONNECTION_KEEP_ALIVE)
-                        messenger.error(error.message, code: error.code)
+                        self.error(.invalidResponseFormat(messageType: .GQL_CONNECTION_KEEP_ALIVE))
                         return
                     }
                     self.onConnectionKeepAlive(connectionKeepAliveResponse, self)
                 case .GQL_DATA:
                     guard let nextResponse = try? self.decoder.decode(DataResponse.self, from: json) else {
-                        let error = GraphQLWSError.invalidResponseFormat(messageType: .GQL_DATA)
-                        messenger.error(error.message, code: error.code)
+                        self.error(.invalidResponseFormat(messageType: .GQL_DATA))
                         return
                     }
                     self.onData(nextResponse, self)
                 case .GQL_ERROR:
                     guard let errorResponse = try? self.decoder.decode(ErrorResponse.self, from: json) else {
-                        let error = GraphQLWSError.invalidResponseFormat(messageType: .GQL_ERROR)
-                        messenger.error(error.message, code: error.code)
+                        self.error(.invalidResponseFormat(messageType: .GQL_ERROR))
                         return
                     }
                     self.onError(errorResponse, self)
                 case .GQL_COMPLETE:
                     guard let completeResponse = try? self.decoder.decode(CompleteResponse.self, from: json) else {
-                        let error = GraphQLWSError.invalidResponseFormat(messageType: .GQL_COMPLETE)
-                        messenger.error(error.message, code: error.code)
+                        self.error(.invalidResponseFormat(messageType: .GQL_COMPLETE))
                         return
                     }
                     self.onComplete(completeResponse, self)
                 case .unknown:
-                    let error = GraphQLWSError.invalidType()
-                    messenger.error(error.message, code: error.code)
+                    self.error(.invalidType())
             }
         }
     }
@@ -183,5 +172,11 @@ public class Client {
         messenger.send(
             ConnectionTerminateRequest().toJSON(encoder)
         )
+    }
+    
+    /// Send an error through the messenger and close the connection
+    private func error(_ error: GraphQLWSError) {
+        guard let messenger = messenger else { return }
+        messenger.error(error.message, code: error.code.rawValue)
     }
 }

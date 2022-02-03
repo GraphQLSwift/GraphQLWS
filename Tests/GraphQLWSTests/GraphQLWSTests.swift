@@ -68,7 +68,7 @@ class GraphqlWsTests: XCTestCase {
         wait(for: [completeExpectation], timeout: 2)
         XCTAssertEqual(
             messages,
-            ["4407: Connection not initialized"]
+            ["\(ErrorCode.notInitialized): Connection not initialized"]
         )
     }
     
@@ -96,7 +96,7 @@ class GraphqlWsTests: XCTestCase {
         wait(for: [completeExpectation], timeout: 2)
         XCTAssertEqual(
             messages,
-            ["4401: Unauthorized"]
+            ["\(ErrorCode.unauthorized): Unauthorized"]
         )
     }
     

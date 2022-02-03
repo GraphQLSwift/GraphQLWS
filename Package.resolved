@@ -12,11 +12,11 @@
       },
       {
         "package": "GraphQL",
-        "repositoryURL": "https://github.com/NeedleInAJayStack/GraphQL.git",
+        "repositoryURL": "https://github.com/GraphQLSwift/GraphQL.git",
         "state": {
-          "branch": "fix/GraphQLRequest",
-          "revision": "239211cf822585e48c31081f1378c809608ec5b8",
-          "version": null
+          "branch": null,
+          "revision": "283cc4de56b994a00b2724328221b7a1bc846ddc",
+          "version": "2.2.1"
         }
       },
       {

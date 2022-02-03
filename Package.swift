@@ -12,8 +12,7 @@ let package = Package(
     ],
     dependencies: [
         .package(name: "Graphiti", url: "https://github.com/GraphQLSwift/Graphiti.git", from: "1.0.0"),
-        // TODO: Mainline when this PR is merged: https://github.com/GraphQLSwift/GraphQL/pull/97
-        .package(name: "GraphQL", url: "https://github.com/NeedleInAJayStack/GraphQL.git", .branch("fix/GraphQLRequest")),
+        .package(name: "GraphQL", url: "https://github.com/GraphQLSwift/GraphQL.git", from: "2.2.1"),
         .package(name: "GraphQLRxSwift", url: "https://github.com/GraphQLSwift/GraphQLRxSwift.git", from: "0.0.4"),
         .package(name: "RxSwift", url: "https://github.com/ReactiveX/RxSwift.git", from: "6.1.0"),
         .package(name: "swift-nio", url: "https://github.com/apple/swift-nio.git", .upToNextMinor(from: "2.33.0"))

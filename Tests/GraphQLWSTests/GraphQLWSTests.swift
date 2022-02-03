@@ -43,6 +43,35 @@ class GraphqlWsTests: XCTestCase {
         )
     }
     
+    /// Tests that trying to run methods before `connection_init` is not allowed
+    func testInitialize() throws {
+        var messages = [String]()
+        let completeExpectation = XCTestExpectation()
+        
+        let client = Client(messenger: clientMessenger)
+        client.onMessage { message, _ in
+            messages.append(message)
+            completeExpectation.fulfill()
+        }
+        
+        client.sendStart(
+            payload: GraphQLRequest(
+                query: """
+                    query {
+                        hello
+                    }
+                    """
+            ),
+            id: UUID().uuidString
+        )
+        
+        wait(for: [completeExpectation], timeout: 2)
+        XCTAssertEqual(
+            messages,
+            ["4407: Connection not initialized"]
+        )
+    }
+    
     /// Tests that throwing in the authorization callback forces an unauthorized error
     func testAuth() throws {
         server.auth { payload in

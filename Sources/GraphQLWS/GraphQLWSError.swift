@@ -1,4 +1,5 @@
 // Copyright (c) 2021 PassiveLogic, Inc.
+import GraphQL
 
 struct GraphQLWSError: Error {
     let message: String
@@ -72,9 +73,9 @@ struct GraphQLWSError: Error {
         )
     }
     
-    static func internalAPIStreamIssue() -> Self {
+    static func internalAPIStreamIssue(errors: [GraphQLError]) -> Self {
         return self.init(
-            "API Response did not result in a stream type",
+            "API Response did not result in a stream type, contained errors\n\(errors.map { $0.message}.joined(separator: "\n"))",
             code: .internalAPIStreamIssue
         )
     }

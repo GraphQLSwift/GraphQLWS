@@ -155,7 +155,7 @@ public class Server {
             subscribeFuture.whenSuccess { result in
                 guard let streamOpt = result.stream else {
                     // API issue - subscribe resolver isn't stream
-                    self.error(.internalAPIStreamIssue())
+                    self.error(.internalAPIStreamIssue(errors: result.errors))
                     return
                 }
                 let stream = streamOpt as! ObservableSubscriptionEventStream

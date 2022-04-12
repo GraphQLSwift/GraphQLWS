@@ -155,7 +155,7 @@ public class Server {
             subscribeFuture.whenSuccess { result in
                 guard let streamOpt = result.stream else {
                     // API issue - subscribe resolver isn't stream
-                    self.error(.internalAPIStreamIssue(errors: result.errors))
+                    self.sendError(result.errors, id: id)
                     return
                 }
                 let stream = streamOpt as! ObservableSubscriptionEventStream
@@ -177,12 +177,11 @@ public class Server {
                     onCompleted: { [weak self] in
                         guard let self = self else { return }
                         self.sendComplete(id: id)
-                        self.messenger?.close()
                     }
                 ).disposed(by: self.disposeBag)
             }
             subscribeFuture.whenFailure { error in
-                self.error(.graphQLError(error))
+                self.sendError(error, id: id)
             }
         }
         else {
@@ -205,7 +204,6 @@ public class Server {
             self.error(.notInitialized())
             return
         }
-        onExit()
     }
     
     private func onConnectionTerminate(_: ConnectionTerminateRequest, _ messenger: Messenger) {

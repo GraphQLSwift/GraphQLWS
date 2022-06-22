@@ -5,7 +5,9 @@ import GraphQL
 import GraphQLRxSwift
 import NIO
 import RxSwift
+import HiveLogging
 
+let logger = Logger(name: "GQL-WS SERVER")
 /// Server implements the server-side portion of the protocol, allowing a few callbacks for customization.
 public class Server {
     // We keep this weak because we strongly inject this object into the messenger callback
@@ -156,7 +158,7 @@ public class Server {
                 guard let streamOpt = result.stream else {
                     // API issue - subscribe resolver isn't stream
                     self.sendError(result.errors, id: id)
-                    print("GQLWS ERROR: \(result.errors)")
+                    logger.error("GQLWS ERROR: \(result.errors)")
                     return
                 }
                 let stream = streamOpt as! ObservableSubscriptionEventStream
@@ -164,26 +166,26 @@ public class Server {
                 observable.subscribe(
                     onNext: { [weak self] resultFuture in
                         guard let self = self else {
-                            print("GQLWS WEAK SELF RESOLUTION FAIL LINE 167")
+                            logger.error("GQLWS WEAK SELF RESOLUTION FAIL LINE 167")
                             return }
                         resultFuture.whenSuccess { result in
-                            print("GQLWS GOT DATA: \(result)")
+                            logger.error("GQLWS GOT DATA: \(result)")
                             self.sendData(result, id: id)
                         }
                         resultFuture.whenFailure { error in
-                            print("GQLWS FAILED DATA: \(error)")
+                            logger.error("GQLWS FAILED DATA: \(error)")
                             self.sendError(error, id: id)
                         }
                     },
                     onError: { [weak self] error in
                         guard let self = self else {
-                            print("GQLWS WEAK SELF RESOLUTION FAIL LINE 180")
+                            logger.error("GQLWS WEAK SELF RESOLUTION FAIL LINE 180")
                             return }
                         self.sendError(error, id: id)
                     },
                     onCompleted: { [weak self] in
                         guard let self = self else {
-                            print("GQLWS WEAK SELF RESOLUTION FAIL LINE 186")
+                            logger.error("GQLWS WEAK SELF RESOLUTION FAIL LINE 186")
                             return }
                         self.sendComplete(id: id)
                     }

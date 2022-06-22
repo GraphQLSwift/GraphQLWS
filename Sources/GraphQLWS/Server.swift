@@ -156,26 +156,35 @@ public class Server {
                 guard let streamOpt = result.stream else {
                     // API issue - subscribe resolver isn't stream
                     self.sendError(result.errors, id: id)
+                    print("GQLWS ERROR: \(result.errors)")
                     return
                 }
                 let stream = streamOpt as! ObservableSubscriptionEventStream
                 let observable = stream.observable
                 observable.subscribe(
                     onNext: { [weak self] resultFuture in
-                        guard let self = self else { return }
+                        guard let self = self else {
+                            print("GQLWS WEAK SELF RESOLUTION FAIL LINE 167")
+                            return }
                         resultFuture.whenSuccess { result in
+                            print("GQLWS GOT DATA: \(result)")
                             self.sendData(result, id: id)
                         }
                         resultFuture.whenFailure { error in
+                            print("GQLWS FAILED DATA: \(error)")
                             self.sendError(error, id: id)
                         }
                     },
                     onError: { [weak self] error in
-                        guard let self = self else { return }
+                        guard let self = self else {
+                            print("GQLWS WEAK SELF RESOLUTION FAIL LINE 180")
+                            return }
                         self.sendError(error, id: id)
                     },
                     onCompleted: { [weak self] in
-                        guard let self = self else { return }
+                        guard let self = self else {
+                            print("GQLWS WEAK SELF RESOLUTION FAIL LINE 186")
+                            return }
                         self.sendComplete(id: id)
                     }
                 ).disposed(by: self.disposeBag)

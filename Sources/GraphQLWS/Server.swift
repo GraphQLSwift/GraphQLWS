@@ -60,9 +60,12 @@ public class Server {
             
             let request: Request
             do {
+                logger.info("decoding request from \(json.debugDescription)")
                 request = try self.decoder.decode(Request.self, from: json)
+                logger.info("finished decoding type...")
             }
             catch {
+                logger.error("fe-d up decoding type with error \(error)")
                 self.error(.noType())
                 return
             }

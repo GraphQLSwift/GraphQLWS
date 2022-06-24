@@ -2,6 +2,9 @@
 
 import Foundation
 import GraphQL
+import HiveLogging
+
+let clientLogger = Logger(name: "GQL_WS_CLIENT")
 
 /// Client is an open-ended implementation of the client side of the protocol. It parses and adds callbacks for each type of server respose.
 public class Client {
@@ -28,10 +31,12 @@ public class Client {
     ) {
         self.messenger = messenger
         messenger.onRecieve { message in
+            clientLogger.debug("received message: \(message)")
             self.onMessage(message, self)
             
             // Detect and ignore error responses.
             if message.starts(with: "44") {
+                clientLogger.error("Received socket error: \(message)")
                 // TODO: Determine what to do with returned error messages
                 return
             }
@@ -43,9 +48,12 @@ public class Client {
             
             let response: Response
             do {
+                clientLogger.info("decoding response from \(json.debugDescription)")
                 response = try self.decoder.decode(Response.self, from: json)
+                clientLogger.info("finished decoding type...")
             }
             catch {
+                clientLogger.error("fe-d up decoding type with error \(error)")
                 self.error(.noType())
                 return
             }

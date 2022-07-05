@@ -7,14 +7,14 @@ import NIO
 import RxSwift
 
 /// Server implements the server-side portion of the protocol, allowing a few callbacks for customization.
-public class Server {
+public class Server<InitPayload: Equatable & Codable> {
     // We keep this weak because we strongly inject this object into the messenger callback
     weak var messenger: Messenger?
     
     let onExecute: (GraphQLRequest) -> EventLoopFuture<GraphQLResult>
     let onSubscribe: (GraphQLRequest) -> EventLoopFuture<SubscriptionResult>
     
-    var auth: (ConnectionInitRequest) throws -> Void = { _ in }
+    var auth: (InitPayload) throws -> Void = { _ in }
     var onExit: () -> Void = { }
     var onMessage: (String) -> Void = { _ in }
     
@@ -66,7 +66,7 @@ public class Server {
             
             switch request.type {
                 case .GQL_CONNECTION_INIT:
-                    guard let connectionInitRequest = try? self.decoder.decode(ConnectionInitRequest.self, from: json) else {
+                    guard let connectionInitRequest = try? self.decoder.decode(ConnectionInitRequest<InitPayload>.self, from: json) else {
                         self.error(.invalidRequestFormat(messageType: .GQL_CONNECTION_INIT))
                         return
                     }
@@ -96,9 +96,9 @@ public class Server {
     }
     
     /// Define the callback run during `connection_init` resolution that allows authorization using the `payload`.
-    /// Throw to indicate that authorization has failed.
+    /// Throw from this closure to indicate that authorization has failed.
     /// - Parameter callback: The callback to assign
-    public func auth(_ callback: @escaping (ConnectionInitRequest) throws -> Void) {
+    public func auth(_ callback: @escaping (InitPayload) throws -> Void) {
         self.auth = callback
     }
     
@@ -114,14 +114,14 @@ public class Server {
         self.onMessage = callback
     }
     
-    private func onConnectionInit(_ connectionInitRequest: ConnectionInitRequest, _ messenger: Messenger) {
+    private func onConnectionInit(_ connectionInitRequest: ConnectionInitRequest<InitPayload>, _ messenger: Messenger) {
         guard !initialized else {
             self.error(.tooManyInitializations())
             return
         }
         
         do {
-            try self.auth(connectionInitRequest)
+            try self.auth(connectionInitRequest.payload)
         }
         catch {
             self.error(.unauthorized())

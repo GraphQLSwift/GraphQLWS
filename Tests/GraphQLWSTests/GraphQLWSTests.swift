@@ -11,7 +11,7 @@ import XCTest
 class GraphqlWsTests: XCTestCase {
     var clientMessenger: TestMessenger!
     var serverMessenger: TestMessenger!
-    var server: Server!
+    var server: Server<TokenInitPayload>!
     
     override func setUp() {
         clientMessenger = TestMessenger()
@@ -24,7 +24,7 @@ class GraphqlWsTests: XCTestCase {
         let api = TestAPI()
         let context = TestContext()
         
-        server = Server(
+        server = Server<TokenInitPayload>(
             messenger: serverMessenger,
             onExecute: { graphQLRequest in
                 api.execute(
@@ -48,7 +48,7 @@ class GraphqlWsTests: XCTestCase {
         var messages = [String]()
         let completeExpectation = XCTestExpectation()
         
-        let client = Client(messenger: clientMessenger)
+        let client = Client<TokenInitPayload>(messenger: clientMessenger)
         client.onMessage { message, _ in
             messages.append(message)
             completeExpectation.fulfill()
@@ -81,14 +81,14 @@ class GraphqlWsTests: XCTestCase {
         var messages = [String]()
         let completeExpectation = XCTestExpectation()
         
-        let client = Client(messenger: clientMessenger)
+        let client = Client<TokenInitPayload>(messenger: clientMessenger)
         client.onMessage { message, _ in
             messages.append(message)
             completeExpectation.fulfill()
         }
         
         client.sendConnectionInit(
-            payload: ConnectionInitAuth(
+            payload: TokenInitPayload(
                 authToken: ""
             )
         )
@@ -100,6 +100,7 @@ class GraphqlWsTests: XCTestCase {
         )
     }
     
+    /// Test single op message flow works as expected
     func testSingleOp() throws {
         let id = UUID().description
         
@@ -107,7 +108,7 @@ class GraphqlWsTests: XCTestCase {
         var messages = [String]()
         let completeExpectation = XCTestExpectation()
         
-        let client = Client(messenger: clientMessenger)
+        let client = Client<TokenInitPayload>(messenger: clientMessenger)
         
         client.onConnectionAck { _, client in
             client.sendStart(
@@ -131,7 +132,7 @@ class GraphqlWsTests: XCTestCase {
             messages.append(message)
         }
         
-        client.sendConnectionInit(payload: ConnectionInitAuth(authToken: ""))
+        client.sendConnectionInit(payload: TokenInitPayload(authToken: ""))
         
         wait(for: [completeExpectation], timeout: 2)
         XCTAssertEqual(
@@ -141,6 +142,7 @@ class GraphqlWsTests: XCTestCase {
         )
     }
     
+    /// Test streaming message flow works as expected
     func testStreaming() throws {
         let id = UUID().description
         
@@ -151,7 +153,7 @@ class GraphqlWsTests: XCTestCase {
         var dataIndex = 1
         let dataIndexMax = 3
         
-        let client = Client(messenger: clientMessenger)
+        let client = Client<TokenInitPayload>(messenger: clientMessenger)
         client.onConnectionAck { _, client in
             client.sendStart(
                 payload: GraphQLRequest(
@@ -187,7 +189,7 @@ class GraphqlWsTests: XCTestCase {
             messages.append(message)
         }
         
-        client.sendConnectionInit(payload: ConnectionInitAuth(authToken: ""))
+        client.sendConnectionInit(payload: TokenInitPayload(authToken: ""))
         
         wait(for: [completeExpectation], timeout: 2)
         XCTAssertEqual(

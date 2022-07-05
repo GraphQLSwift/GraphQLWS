@@ -4,7 +4,7 @@ import Foundation
 import GraphQL
 
 /// Client is an open-ended implementation of the client side of the protocol. It parses and adds callbacks for each type of server respose.
-public class Client {
+public class Client<InitPayload: Equatable & Codable> {
     // We keep this weak because we strongly inject this object into the messenger callback
     weak var messenger: Messenger?
     
@@ -136,7 +136,7 @@ public class Client {
     }
     
     /// Send a `connection_init` request through the messenger
-    public func sendConnectionInit(payload: ConnectionInitAuth?) {
+    public func sendConnectionInit(payload: InitPayload) {
         guard let messenger = messenger else { return }
         messenger.send(
             ConnectionInitRequest(

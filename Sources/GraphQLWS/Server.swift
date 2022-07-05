@@ -7,6 +7,8 @@ import NIO
 import RxSwift
 
 /// Server implements the server-side portion of the protocol, allowing a few callbacks for customization.
+///
+/// By default, there are no authorization checks
 public class Server<InitPayload: Equatable & Codable> {
     // We keep this weak because we strongly inject this object into the messenger callback
     weak var messenger: Messenger?

@@ -8,7 +8,6 @@ public protocol Messenger: AnyObject {
     // AnyObject compliance requires that the implementing object is a class and we can reference it weakly
     func send<S>(_ message: S) -> Void where S: Collection, S.Element == Character
     func onRecieve(callback: @escaping (String) -> Void) -> Void
-    func onClose(callback: @escaping () -> Void) -> Void
     func close() -> Void
     func error(_ message: String, code: Int) -> Void
 }

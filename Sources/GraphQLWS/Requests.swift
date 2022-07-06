@@ -20,19 +20,9 @@ struct Request: Equatable, JsonEncodable {
 }
 
 /// A websocket `connection_init` request from the client to the server
-public struct ConnectionInitRequest: Equatable, JsonEncodable {
+public struct ConnectionInitRequest<InitPayload: Codable & Equatable>: Equatable, JsonEncodable {
     var type = RequestMessageType.GQL_CONNECTION_INIT
-    public let payload: ConnectionInitAuth?
-}
-
-// TODO: Make this structure user-defined
-/// Authorization format for a websocket `connection_init` request from the client to the server
-public struct ConnectionInitAuth: Equatable, JsonEncodable {
-    public let authToken: String
-    
-    public init(authToken: String) {
-        self.authToken = authToken
-    }
+    let payload: InitPayload
 }
 
 /// A websocket `start` request from the client to the server

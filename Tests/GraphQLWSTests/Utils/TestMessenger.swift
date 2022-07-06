@@ -10,7 +10,6 @@ import Foundation
 class TestMessenger: Messenger {
     weak var other: TestMessenger?
     var onRecieve: (String) -> Void = { _ in }
-    var onClose: () -> Void = { }
     let queue: DispatchQueue = .init(label: "Test messenger")
     
     init() {}
@@ -30,16 +29,11 @@ class TestMessenger: Messenger {
         self.onRecieve = callback
     }
     
-    func onClose(callback: @escaping () -> Void) {
-        self.onClose = callback
-    }
-    
     func error(_ message: String, code: Int) {
         self.send("\(code): \(message)")
     }
     
     func close() {
         // This is a testing no-op
-        self.onClose()
     }
 }

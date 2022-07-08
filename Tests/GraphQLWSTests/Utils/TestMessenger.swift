@@ -9,7 +9,7 @@ import Foundation
 /// or risk them being deinitialized early
 class TestMessenger: Messenger {
     weak var other: TestMessenger?
-    var onRecieve: (String) -> Void = { _ in }
+    var onReceive: (String) -> Void = { _ in }
     let queue: DispatchQueue = .init(label: "Test messenger")
     
     init() {}
@@ -21,12 +21,12 @@ class TestMessenger: Messenger {
         
         // Run the other message asyncronously to avoid nesting issues
         queue.async {
-            other.onRecieve(String(message))
+            other.onReceive(String(message))
         }
     }
     
-    func onRecieve(callback: @escaping (String) -> Void) {
-        self.onRecieve = callback
+    func onReceive(callback: @escaping (String) -> Void) {
+        self.onReceive = callback
     }
     
     func error(_ message: String, code: Int) {

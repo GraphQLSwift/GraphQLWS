@@ -27,12 +27,12 @@ import GraphQLWS
 /// Messenger wrapper for WebSockets
 class WebSocketMessenger: Messenger {
     private weak var websocket: WebSocket?
-    private var onRecieve: (String) -> Void = { _ in }
+    private var onReceive: (String) -> Void = { _ in }
     
     init(websocket: WebSocket) {
         self.websocket = websocket
         websocket.onText { _, message in
-            self.onRecieve(message)
+            self.onReceive(message)
         }
     }
     
@@ -41,8 +41,8 @@ class WebSocketMessenger: Messenger {
         websocket.send(message)
     }
     
-    func onRecieve(callback: @escaping (String) -> Void) {
-        self.onRecieve = callback
+    func onReceive(callback: @escaping (String) -> Void) {
+        self.onReceive = callback
     }
     
     func error(_ message: String, code: Int) {

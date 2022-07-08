@@ -12,7 +12,7 @@ public protocol Messenger: AnyObject {
     func send<S>(_ message: S) -> Void where S: Collection, S.Element == Character
     
     /// Set the callback that should be run when a message is recieved
-    func onRecieve(callback: @escaping (String) -> Void) -> Void
+    func onReceive(callback: @escaping (String) -> Void) -> Void
     
     /// Close the messenger
     func close() -> Void

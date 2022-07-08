@@ -27,7 +27,7 @@ public class Client<InitPayload: Equatable & Codable> {
         messenger: Messenger
     ) {
         self.messenger = messenger
-        messenger.onRecieve { message in
+        messenger.onReceive { message in
             self.onMessage(message, self)
             
             // Detect and ignore error responses.

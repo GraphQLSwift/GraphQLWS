@@ -19,6 +19,7 @@ public class Server<InitPayload: Equatable & Codable> {
     var auth: (InitPayload) throws -> Void = { _ in }
     var onExit: () -> Void = { }
     var onMessage: (String) -> Void = { _ in }
+    var onStop: () -> Void = { }
     
     var initialized = false
     
@@ -66,6 +67,7 @@ public class Server<InitPayload: Equatable & Codable> {
                 return
             }
             
+            // handle incoming message
             switch request.type {
                 case .GQL_CONNECTION_INIT:
                     guard let connectionInitRequest = try? self.decoder.decode(ConnectionInitRequest<InitPayload>.self, from: json) else {
@@ -114,6 +116,12 @@ public class Server<InitPayload: Equatable & Codable> {
     /// - Parameter callback: The callback to assign
     public func onMessage(_ callback: @escaping (String) -> Void) {
         self.onMessage = callback
+    }
+    
+    /// Define the callback run on receipt of a`GQL_STOP` message
+    /// - Parameter callback: The callback to assign
+    public func onStop(_ callback: @escaping () -> Void) {
+        self.onStop = callback
     }
     
     private func onConnectionInit(_ connectionInitRequest: ConnectionInitRequest<InitPayload>, _ messenger: Messenger) {
@@ -206,6 +214,7 @@ public class Server<InitPayload: Equatable & Codable> {
             self.error(.notInitialized())
             return
         }
+        onStop()
     }
     
     private func onConnectionTerminate(_: ConnectionTerminateRequest, _ messenger: Messenger) {

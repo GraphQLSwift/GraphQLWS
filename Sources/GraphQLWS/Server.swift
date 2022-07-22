@@ -19,8 +19,8 @@ public class Server<InitPayload: Equatable & Codable> {
     var auth: (InitPayload) throws -> Void = { _ in }
     var onExit: () -> Void = { }
     var onMessage: (String) -> Void = { _ in }
-    var onOperationComplete: () -> Void = {}
-    var onOperationError: () -> Void = {}
+    var onOperationComplete: (String) -> Void = { _ in }
+    var onOperationError: (String) -> Void = { _ in }
     
     var initialized = false
     
@@ -87,7 +87,7 @@ public class Server<InitPayload: Equatable & Codable> {
                         self.error(.invalidRequestFormat(messageType: .GQL_STOP))
                         return
                     }
-                    self.onStop(stopRequest, messenger)
+                    self.onOperationComplete(stopRequest.id)
                 case .GQL_CONNECTION_TERMINATE:
                     guard let connectionTerminateRequest = try? self.decoder.decode(ConnectionTerminateRequest.self, from: json) else {
                         self.error(.invalidRequestFormat(messageType: .GQL_CONNECTION_TERMINATE))
@@ -121,13 +121,13 @@ public class Server<InitPayload: Equatable & Codable> {
     
     /// Define the callback run on the completion a full operation (query/mutation, end of subscription)
     /// - Parameter callback: The callback to assign
-    public func onOperationComplete(_ callback: @escaping () -> Void) {
+    public func onOperationComplete(_ callback: @escaping (String) -> Void) {
         self.onOperationComplete = callback
     }
     
     /// Define the callback to run on error of any full operation (failed query, interrupted subscription)
     /// - Parameter callback: The callback to assign
-    public func onOperationError(_ callback: @escaping () -> Void) {
+    public func onOperationError(_ callback: @escaping (String) -> Void) {
         self.onOperationError = callback
     }
     
@@ -216,14 +216,6 @@ public class Server<InitPayload: Equatable & Codable> {
         }
     }
     
-    private func onStop(_: StopRequest, _ messenger: Messenger) {
-        guard initialized else {
-            self.error(.notInitialized())
-            return
-        }
-        onOperationComplete()
-    }
-    
     private func onConnectionTerminate(_: ConnectionTerminateRequest, _ messenger: Messenger) {
         onExit()
         _ = messenger.close()
@@ -272,7 +264,7 @@ public class Server<InitPayload: Equatable & Codable> {
                 id: id
             ).toJSON(encoder)
         )
-        onOperationComplete()
+        onOperationComplete(id)
     }
     
     /// Send an `error` response through the messenger
@@ -284,7 +276,7 @@ public class Server<InitPayload: Equatable & Codable> {
                 id: id
             ).toJSON(encoder)
         )
-        onOperationError()
+        onOperationError(id)
     }
     
     /// Send an `error` response through the messenger

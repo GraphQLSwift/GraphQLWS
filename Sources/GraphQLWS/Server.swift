@@ -19,7 +19,8 @@ public class Server<InitPayload: Equatable & Codable> {
     var auth: (InitPayload) throws -> Void = { _ in }
     var onExit: () -> Void = { }
     var onMessage: (String) -> Void = { _ in }
-    var onStop: () -> Void = { }
+    var onOperationComplete: () -> Void = {}
+    var onOperationError: () -> Void = {}
     
     var initialized = false
     
@@ -118,10 +119,16 @@ public class Server<InitPayload: Equatable & Codable> {
         self.onMessage = callback
     }
     
-    /// Define the callback run on receipt of a`GQL_STOP` message
+    /// Define the callback run on the completion a full operation (query/mutation, end of subscription)
     /// - Parameter callback: The callback to assign
-    public func onStop(_ callback: @escaping () -> Void) {
-        self.onStop = callback
+    public func onOperationComplete(_ callback: @escaping () -> Void) {
+        self.onOperationComplete = callback
+    }
+    
+    /// Define the callback to run on error of any full operation (failed query, interrupted subscription)
+    /// - Parameter callback: The callback to assign
+    public func onOperationError(_ callback: @escaping () -> Void) {
+        self.onOperationError = callback
     }
     
     private func onConnectionInit(_ connectionInitRequest: ConnectionInitRequest<InitPayload>, _ messenger: Messenger) {
@@ -214,7 +221,7 @@ public class Server<InitPayload: Equatable & Codable> {
             self.error(.notInitialized())
             return
         }
-        onStop()
+        onOperationComplete()
     }
     
     private func onConnectionTerminate(_: ConnectionTerminateRequest, _ messenger: Messenger) {
@@ -265,6 +272,7 @@ public class Server<InitPayload: Equatable & Codable> {
                 id: id
             ).toJSON(encoder)
         )
+        onOperationComplete()
     }
     
     /// Send an `error` response through the messenger
@@ -276,6 +284,7 @@ public class Server<InitPayload: Equatable & Codable> {
                 id: id
             ).toJSON(encoder)
         )
+        onOperationError()
     }
     
     /// Send an `error` response through the messenger

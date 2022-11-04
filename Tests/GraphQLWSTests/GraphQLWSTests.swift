@@ -12,6 +12,7 @@ class GraphqlWsTests: XCTestCase {
     var clientMessenger: TestMessenger!
     var serverMessenger: TestMessenger!
     var server: Server<TokenInitPayload>!
+    var eventLoop: EventLoop!
     
     override func setUp() {
         // Point the client and server at each other
@@ -20,7 +21,7 @@ class GraphqlWsTests: XCTestCase {
         clientMessenger.other = serverMessenger
         serverMessenger.other = clientMessenger
         
-        let eventLoop = MultiThreadedEventLoopGroup(numberOfThreads: 1).next()
+        eventLoop = MultiThreadedEventLoopGroup(numberOfThreads: 1).next()
         let api = TestAPI()
         let context = TestContext()
         
@@ -30,16 +31,17 @@ class GraphqlWsTests: XCTestCase {
                 api.execute(
                     request: graphQLRequest.query,
                     context: context,
-                    on: eventLoop
+                    on: self.eventLoop
                 )
             },
             onSubscribe: { graphQLRequest in
                 api.subscribe(
                     request: graphQLRequest.query,
                     context: context,
-                    on: eventLoop
+                    on: self.eventLoop
                 )
-            }
+            },
+            eventLoop: self.eventLoop
         )
     }
     
@@ -73,9 +75,37 @@ class GraphqlWsTests: XCTestCase {
     }
     
     /// Tests that throwing in the authorization callback forces an unauthorized error
-    func testAuth() throws {
+    func testAuthWithThrow() throws {
         server.auth { payload in
             throw TestError.couldBeAnything
+        }
+        
+        var messages = [String]()
+        let completeExpectation = XCTestExpectation()
+        
+        let client = Client<TokenInitPayload>(messenger: clientMessenger)
+        client.onMessage { message, _ in
+            messages.append(message)
+            completeExpectation.fulfill()
+        }
+        
+        client.sendConnectionInit(
+            payload: TokenInitPayload(
+                authToken: ""
+            )
+        )
+        
+        wait(for: [completeExpectation], timeout: 2)
+        XCTAssertEqual(
+            messages,
+            ["\(ErrorCode.unauthorized): Unauthorized"]
+        )
+    }
+    
+    /// Tests that failing a future in the authorization callback forces an unauthorized error
+    func testAuthWithFailedFuture() throws {
+        server.auth { payload in
+            self.eventLoop.makeFailedFuture(TestError.couldBeAnything)
         }
         
         var messages = [String]()

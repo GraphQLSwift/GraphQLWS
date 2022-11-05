@@ -13,8 +13,8 @@ public class Server<InitPayload: Equatable & Codable> {
     
     let onExecute: (GraphQLRequest) -> EventLoopFuture<GraphQLResult>
     let onSubscribe: (GraphQLRequest) -> EventLoopFuture<SubscriptionResult>
+    var auth: (InitPayload) throws -> EventLoopFuture<Void>
     
-    var auth: (InitPayload) throws -> Void = { _ in }
     var onExit: () -> Void = { }
     var onMessage: (String) -> Void = { _ in }
     var onOperationComplete: (String) -> Void = { _ in }
@@ -32,14 +32,17 @@ public class Server<InitPayload: Equatable & Codable> {
     ///   - messenger: The messenger to bind the server to.
     ///   - onExecute: Callback run during `start` resolution for non-streaming queries. Typically this is `API.execute`.
     ///   - onSubscribe: Callback run during `start` resolution for streaming queries. Typically this is `API.subscribe`.
+    ///   - eventLoop: EventLoop on which to perform server operations.
     public init(
         messenger: Messenger,
         onExecute: @escaping (GraphQLRequest) -> EventLoopFuture<GraphQLResult>,
-        onSubscribe: @escaping (GraphQLRequest) -> EventLoopFuture<SubscriptionResult>
+        onSubscribe: @escaping (GraphQLRequest) -> EventLoopFuture<SubscriptionResult>,
+        eventLoop: EventLoop
     ) {
         self.messenger = messenger
         self.onExecute = onExecute
         self.onSubscribe = onSubscribe
+        self.auth = { _ in eventLoop.makeSucceededVoidFuture() }
         
         messenger.onReceive { message in
             guard let messenger = self.messenger else { return }
@@ -98,10 +101,10 @@ public class Server<InitPayload: Equatable & Codable> {
         }
     }
     
-    /// Define the callback run during `connection_init` resolution that allows authorization using the `payload`.
-    /// Throw from this closure to indicate that authorization has failed.
+    /// Define a custom callback run during `connection_init` resolution that allows authorization using the `payload`.
+    /// Throw or fail the future from this closure to indicate that authorization has failed.
     /// - Parameter callback: The callback to assign
-    public func auth(_ callback: @escaping (InitPayload) throws -> Void) {
+    public func auth(_ callback: @escaping (InitPayload) throws -> EventLoopFuture<Void>) {
         self.auth = callback
     }
     
@@ -136,14 +139,20 @@ public class Server<InitPayload: Equatable & Codable> {
         }
         
         do {
-            try self.auth(connectionInitRequest.payload)
+            let authResult = try self.auth(connectionInitRequest.payload)
+            authResult.whenSuccess {
+                self.initialized = true
+                self.sendConnectionAck()
+            }
+            authResult.whenFailure { error in
+                self.error(.unauthorized())
+                return
+            }
         }
         catch {
             self.error(.unauthorized())
             return
         }
-        initialized = true
-        self.sendConnectionAck()
         // TODO: Should we send the `ka` message?
     }
     

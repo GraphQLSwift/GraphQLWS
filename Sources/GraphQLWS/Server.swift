@@ -18,7 +18,7 @@ public class Server<InitPayload: Equatable & Codable> {
     var onExit: () -> Void = { }
     var onMessage: (String) -> Void = { _ in }
     var onOperationComplete: (String) -> Void = { _ in }
-    var onOperationError: (String) -> Void = { _ in }
+    var onOperationError: (String, [Error]) -> Void = { _, _ in }
     
     var initialized = false
     
@@ -128,7 +128,7 @@ public class Server<InitPayload: Equatable & Codable> {
     
     /// Define the callback to run on error of any full operation (failed query, interrupted subscription)
     /// - Parameter callback: The callback to assign
-    public func onOperationError(_ callback: @escaping (String) -> Void) {
+    public func onOperationError(_ callback: @escaping (String, [Error]) -> Void) {
         self.onOperationError = callback
     }
     
@@ -283,7 +283,7 @@ public class Server<InitPayload: Equatable & Codable> {
                 id: id
             ).toJSON(encoder)
         )
-        onOperationError(id)
+        onOperationError(id, errors)
     }
     
     /// Send an `error` response through the messenger

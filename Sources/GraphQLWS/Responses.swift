@@ -10,9 +10,9 @@ public struct Response: Equatable, JsonEncodable {
 public struct ConnectionAckResponse: Equatable, JsonEncodable {
     let type: ResponseMessageType
     public let payload: [String: Map]?
-    
+
     init(_ payload: [String: Map]? = nil) {
-        self.type = .GQL_CONNECTION_ACK
+        type = .GQL_CONNECTION_ACK
         self.payload = payload
     }
 }
@@ -21,9 +21,9 @@ public struct ConnectionAckResponse: Equatable, JsonEncodable {
 public struct ConnectionErrorResponse: Equatable, JsonEncodable {
     let type: ResponseMessageType
     public let payload: [String: Map]?
-    
+
     init(_ payload: [String: Map]? = nil) {
-        self.type = .GQL_CONNECTION_ERROR
+        type = .GQL_CONNECTION_ERROR
         self.payload = payload
     }
 }
@@ -32,9 +32,9 @@ public struct ConnectionErrorResponse: Equatable, JsonEncodable {
 public struct ConnectionKeepAliveResponse: Equatable, JsonEncodable {
     let type: ResponseMessageType
     public let payload: [String: Map]?
-    
+
     init(_ payload: [String: Map]? = nil) {
-        self.type = .GQL_CONNECTION_KEEP_ALIVE
+        type = .GQL_CONNECTION_KEEP_ALIVE
         self.payload = payload
     }
 }
@@ -44,9 +44,9 @@ public struct DataResponse: Equatable, JsonEncodable {
     let type: ResponseMessageType
     public let payload: GraphQLResult?
     public let id: String
-    
+
     init(_ payload: GraphQLResult? = nil, id: String) {
-        self.type = .GQL_DATA
+        type = .GQL_DATA
         self.payload = payload
         self.id = id
     }
@@ -56,9 +56,9 @@ public struct DataResponse: Equatable, JsonEncodable {
 public struct CompleteResponse: Equatable, JsonEncodable {
     let type: ResponseMessageType
     public let id: String
-    
+
     init(id: String) {
-        self.type = .GQL_COMPLETE
+        type = .GQL_COMPLETE
         self.id = id
     }
 }
@@ -68,18 +68,18 @@ public struct ErrorResponse: Equatable, JsonEncodable {
     let type: ResponseMessageType
     public let payload: [GraphQLError]
     public let id: String
-    
+
     init(_ errors: [Error], id: String) {
         let graphQLErrors = errors.map { error -> GraphQLError in
             switch error {
-                case let graphQLError as GraphQLError:
-                    return graphQLError
-                default:
-                    return GraphQLError(error)
+            case let graphQLError as GraphQLError:
+                return graphQLError
+            default:
+                return GraphQLError(error)
             }
         }
-        self.type = .GQL_ERROR
-        self.payload = graphQLErrors
+        type = .GQL_ERROR
+        payload = graphQLErrors
         self.id = id
     }
 }
@@ -93,7 +93,7 @@ enum ResponseMessageType: String, Codable {
     case GQL_ERROR = "error"
     case GQL_COMPLETE = "complete"
     case unknown
-    
+
     init(from decoder: Decoder) throws {
         guard let value = try? decoder.singleValueContainer().decode(String.self) else {
             self = .unknown
@@ -108,9 +108,9 @@ enum ResponseMessageType: String, Codable {
 struct EncodingErrorResponse: Equatable, Codable, JsonEncodable {
     let type: ResponseMessageType
     let payload: [String: String]
-    
+
     init(_ errorMessage: String) {
-        self.type = .GQL_ERROR
-        self.payload = ["error": errorMessage]
+        type = .GQL_ERROR
+        payload = ["error": errorMessage]
     }
 }

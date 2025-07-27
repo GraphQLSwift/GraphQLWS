@@ -48,7 +48,7 @@ enum RequestMessageType: String, Codable {
     case GQL_STOP = "stop"
     case GQL_CONNECTION_TERMINATE = "connection_terminate"
     case unknown
-    
+
     init(from decoder: Decoder) throws {
         guard let value = try? decoder.singleValueContainer().decode(String.self) else {
             self = .unknown

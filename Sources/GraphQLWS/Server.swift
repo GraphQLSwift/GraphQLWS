@@ -1,8 +1,5 @@
 import Foundation
 import GraphQL
-import GraphQLRxSwift
-import NIO
-import RxSwift
 
 /// Server implements the server-side portion of the protocol, allowing a few callbacks for customization.
 ///
@@ -10,295 +7,295 @@ import RxSwift
 public class Server<InitPayload: Equatable & Codable> {
     // We keep this weak because we strongly inject this object into the messenger callback
     weak var messenger: Messenger?
-    
-    let onExecute: (GraphQLRequest) -> EventLoopFuture<GraphQLResult>
-    let onSubscribe: (GraphQLRequest) -> EventLoopFuture<SubscriptionResult>
-    var auth: (InitPayload) throws -> EventLoopFuture<Void>
-    
-    var onExit: () -> Void = { }
-    var onMessage: (String) -> Void = { _ in }
-    var onOperationComplete: (String) -> Void = { _ in }
-    var onOperationError: (String, [Error]) -> Void = { _, _ in }
-    
+
+    let onExecute: (GraphQLRequest) async throws -> GraphQLResult
+    let onSubscribe: (GraphQLRequest) async throws -> Result<AsyncThrowingStream<GraphQLResult, Error>, GraphQLErrors>
+    var auth: (InitPayload) async throws -> Void
+
+    var onExit: () async throws -> Void = {}
+    var onMessage: (String) async throws -> Void = { _ in }
+    var onOperationComplete: (String) async throws -> Void = { _ in }
+    var onOperationError: (String, [Error]) async throws -> Void = { _, _ in }
+
     var initialized = false
-    
-    let disposeBag = DisposeBag()
+
     let decoder = JSONDecoder()
     let encoder = GraphQLJSONEncoder()
-    
+
+    private var subscriptionTasks = [String: Task<Void, any Error>]()
+
     /// Create a new server
     ///
     /// - Parameters:
     ///   - messenger: The messenger to bind the server to.
     ///   - onExecute: Callback run during `start` resolution for non-streaming queries. Typically this is `API.execute`.
     ///   - onSubscribe: Callback run during `start` resolution for streaming queries. Typically this is `API.subscribe`.
-    ///   - eventLoop: EventLoop on which to perform server operations.
     public init(
         messenger: Messenger,
-        onExecute: @escaping (GraphQLRequest) -> EventLoopFuture<GraphQLResult>,
-        onSubscribe: @escaping (GraphQLRequest) -> EventLoopFuture<SubscriptionResult>,
-        eventLoop: EventLoop
+        onExecute: @escaping (GraphQLRequest) async throws -> GraphQLResult,
+        onSubscribe: @escaping (GraphQLRequest) async throws -> Result<AsyncThrowingStream<GraphQLResult, Error>, GraphQLErrors>
     ) {
         self.messenger = messenger
         self.onExecute = onExecute
         self.onSubscribe = onSubscribe
-        self.auth = { _ in eventLoop.makeSucceededVoidFuture() }
-        
+        auth = { _ in }
+
         messenger.onReceive { message in
             guard let messenger = self.messenger else { return }
-            
-            self.onMessage(message)
-            
+
+            try await self.onMessage(message)
+
             // Detect and ignore error responses.
             if message.starts(with: "44") {
                 // TODO: Determine what to do with returned error messages
                 return
             }
-            
+
             guard let json = message.data(using: .utf8) else {
-                self.error(.invalidEncoding())
+                try await self.error(.invalidEncoding())
                 return
             }
-            
+
             let request: Request
             do {
                 request = try self.decoder.decode(Request.self, from: json)
-            }
-            catch {
-                self.error(.noType())
+            } catch {
+                try await self.error(.noType())
                 return
             }
-            
+
             // handle incoming message
             switch request.type {
-                case .GQL_CONNECTION_INIT:
-                    guard let connectionInitRequest = try? self.decoder.decode(ConnectionInitRequest<InitPayload>.self, from: json) else {
-                        self.error(.invalidRequestFormat(messageType: .GQL_CONNECTION_INIT))
-                        return
-                    }
-                    self.onConnectionInit(connectionInitRequest, messenger)
-                case .GQL_START:
-                    guard let startRequest = try? self.decoder.decode(StartRequest.self, from: json) else {
-                        self.error(.invalidRequestFormat(messageType: .GQL_START))
-                        return
-                    }
-                    self.onStart(startRequest, messenger)
-                case .GQL_STOP:
-                    guard let stopRequest = try? self.decoder.decode(StopRequest.self, from: json) else {
-                        self.error(.invalidRequestFormat(messageType: .GQL_STOP))
-                        return
-                    }
-                    self.onOperationComplete(stopRequest.id)
-                case .GQL_CONNECTION_TERMINATE:
-                    guard let connectionTerminateRequest = try? self.decoder.decode(ConnectionTerminateRequest.self, from: json) else {
-                        self.error(.invalidRequestFormat(messageType: .GQL_CONNECTION_TERMINATE))
-                        return
-                    }
-                    self.onConnectionTerminate(connectionTerminateRequest, messenger)
-                case .unknown:
-                    self.error(.invalidType())
+            case .GQL_CONNECTION_INIT:
+                guard let connectionInitRequest = try? self.decoder.decode(ConnectionInitRequest<InitPayload>.self, from: json) else {
+                    try await self.error(.invalidRequestFormat(messageType: .GQL_CONNECTION_INIT))
+                    return
+                }
+                try await self.onConnectionInit(connectionInitRequest, messenger)
+            case .GQL_START:
+                guard let startRequest = try? self.decoder.decode(StartRequest.self, from: json) else {
+                    try await self.error(.invalidRequestFormat(messageType: .GQL_START))
+                    return
+                }
+                try await self.onStart(startRequest, messenger)
+            case .GQL_STOP:
+                guard let stopRequest = try? self.decoder.decode(StopRequest.self, from: json) else {
+                    try await self.error(.invalidRequestFormat(messageType: .GQL_STOP))
+                    return
+                }
+                try await self.onStop(stopRequest)
+            case .GQL_CONNECTION_TERMINATE:
+                guard let connectionTerminateRequest = try? self.decoder.decode(ConnectionTerminateRequest.self, from: json) else {
+                    try await self.error(.invalidRequestFormat(messageType: .GQL_CONNECTION_TERMINATE))
+                    return
+                }
+                try await self.onConnectionTerminate(connectionTerminateRequest, messenger)
+            case .unknown:
+                try await self.error(.invalidType())
             }
         }
     }
-    
+
     /// Define a custom callback run during `connection_init` resolution that allows authorization using the `payload`.
-    /// Throw or fail the future from this closure to indicate that authorization has failed.
+    /// Throw from this closure to indicate that authorization has failed.
     /// - Parameter callback: The callback to assign
-    public func auth(_ callback: @escaping (InitPayload) throws -> EventLoopFuture<Void>) {
-        self.auth = callback
+    public func auth(_ callback: @escaping (InitPayload) async throws -> Void) {
+        auth = callback
     }
-    
+
     /// Define the callback run when the communication is shut down, either by the client or server
     /// - Parameter callback: The callback to assign
     public func onExit(_ callback: @escaping () -> Void) {
-        self.onExit = callback
+        onExit = callback
     }
-    
+
     /// Define the callback run on receipt of any message
     /// - Parameter callback: The callback to assign
     public func onMessage(_ callback: @escaping (String) -> Void) {
-        self.onMessage = callback
+        onMessage = callback
     }
-    
+
     /// Define the callback run on the completion a full operation (query/mutation, end of subscription)
     /// - Parameter callback: The callback to assign
     public func onOperationComplete(_ callback: @escaping (String) -> Void) {
-        self.onOperationComplete = callback
+        onOperationComplete = callback
     }
-    
+
     /// Define the callback to run on error of any full operation (failed query, interrupted subscription)
     /// - Parameter callback: The callback to assign
     public func onOperationError(_ callback: @escaping (String, [Error]) -> Void) {
-        self.onOperationError = callback
+        onOperationError = callback
     }
-    
-    private func onConnectionInit(_ connectionInitRequest: ConnectionInitRequest<InitPayload>, _ messenger: Messenger) {
+
+    private func onConnectionInit(_ connectionInitRequest: ConnectionInitRequest<InitPayload>, _: Messenger) async throws {
         guard !initialized else {
-            self.error(.tooManyInitializations())
+            try await error(.tooManyInitializations())
             return
         }
-        
+
         do {
-            let authResult = try self.auth(connectionInitRequest.payload)
-            authResult.whenSuccess {
-                self.initialized = true
-                self.sendConnectionAck()
-            }
-            authResult.whenFailure { error in
-                self.error(.unauthorized())
-                return
-            }
-        }
-        catch {
-            self.error(.unauthorized())
+            try await auth(connectionInitRequest.payload)
+        } catch {
+            try await self.error(.unauthorized())
             return
         }
+        initialized = true
+        try await sendConnectionAck()
         // TODO: Should we send the `ka` message?
     }
-    
-    private func onStart(_ startRequest: StartRequest, _ messenger: Messenger) {
+
+    private func onStart(_ startRequest: StartRequest, _ messenger: Messenger) async throws {
         guard initialized else {
-            self.error(.notInitialized())
+            try await error(.notInitialized())
             return
         }
-        
+
         let id = startRequest.id
+        if subscriptionTasks[id] != nil {
+            try await error(.subscriberAlreadyExists(id: id))
+        }
+
         let graphQLRequest = startRequest.payload
-        
+
         var isStreaming = false
         do {
             isStreaming = try graphQLRequest.isSubscription()
-        }
-        catch {
-            self.sendError(error, id: id)
+        } catch {
+            try await sendError(error, id: id)
             return
         }
-        
+
         if isStreaming {
-            let subscribeFuture = onSubscribe(graphQLRequest)
-            subscribeFuture.whenSuccess { result in
-                guard let streamOpt = result.stream else {
-                    // API issue - subscribe resolver isn't stream
-                    self.sendError(result.errors, id: id)
+            do {
+                let result = try await onSubscribe(graphQLRequest)
+                let stream: AsyncThrowingStream<GraphQLResult, Error>
+                do {
+                    stream = try result.get()
+                } catch {
+                    try await sendError(error, id: id)
                     return
                 }
-                let stream = streamOpt as! ObservableSubscriptionEventStream
-                let observable = stream.observable
-                observable.subscribe(
-                    onNext: { [weak self] resultFuture in
-                        guard let self = self else { return }
-                        resultFuture.whenSuccess { result in
-                            self.sendData(result, id: id)
+                subscriptionTasks[id] = Task {
+                    for try await event in stream {
+                        try Task.checkCancellation()
+                        do {
+                            try await self.sendData(event, id: id)
+                        } catch {
+                            try await self.sendError(error, id: id)
+                            throw error
                         }
-                        resultFuture.whenFailure { error in
-                            self.sendError(error, id: id)
-                        }
-                    },
-                    onError: { [weak self] error in
-                        guard let self = self else { return }
-                        self.sendError(error, id: id)
-                    },
-                    onCompleted: { [weak self] in
-                        guard let self = self else { return }
-                        self.sendComplete(id: id)
                     }
-                ).disposed(by: self.disposeBag)
+                    try await self.sendComplete(id: id)
+                }
+            } catch {
+                try await sendError(error, id: id)
             }
-            subscribeFuture.whenFailure { error in
-                self.sendError(error, id: id)
+        } else {
+            do {
+                let result = try await onExecute(graphQLRequest)
+                try await sendData(result, id: id)
+                try await sendComplete(id: id)
+            } catch {
+                try await sendError(error, id: id)
             }
-        }
-        else {
-            let executeFuture = onExecute(graphQLRequest)
-            executeFuture.whenSuccess { result in
-                self.sendData(result, id: id)
-                self.sendComplete(id: id)
-                messenger.close()
-            }
-            executeFuture.whenFailure { error in
-                self.sendError(error, id: id)
-                self.sendComplete(id: id)
-                messenger.close()
-            }
+            try await messenger.close()
         }
     }
-    
-    private func onConnectionTerminate(_: ConnectionTerminateRequest, _ messenger: Messenger) {
-        onExit()
-        _ = messenger.close()
+
+    private func onStop(_ stopRequest: StopRequest) async throws {
+        guard initialized else {
+            try await error(.notInitialized())
+            return
+        }
+
+        let id = stopRequest.id
+        if let task = subscriptionTasks[id] {
+            task.cancel()
+            subscriptionTasks.removeValue(forKey: id)
+        }
+        try await onOperationComplete(id)
     }
-    
+
+    private func onConnectionTerminate(_: ConnectionTerminateRequest, _ messenger: Messenger) async throws {
+        for (_, subscriptionTask) in subscriptionTasks {
+            subscriptionTask.cancel()
+        }
+        subscriptionTasks.removeAll()
+        try await onExit()
+        try await messenger.close()
+    }
+
     /// Send a `connection_ack` response through the messenger
-    private func sendConnectionAck(_ payload: [String: Map]? = nil) {
+    private func sendConnectionAck(_ payload: [String: Map]? = nil) async throws {
         guard let messenger = messenger else { return }
-        messenger.send(
+        try await messenger.send(
             ConnectionAckResponse(payload).toJSON(encoder)
         )
     }
-    
+
     /// Send a `connection_error` response through the messenger
-    private func sendConnectionError(_ payload: [String: Map]? = nil) {
+    private func sendConnectionError(_ payload: [String: Map]? = nil) async throws {
         guard let messenger = messenger else { return }
-        messenger.send(
+        try await messenger.send(
             ConnectionErrorResponse(payload).toJSON(encoder)
         )
     }
-    
+
     /// Send a `ka` response through the messenger
-    private func sendConnectionKeepAlive(_ payload: [String: Map]? = nil) {
+    private func sendConnectionKeepAlive(_ payload: [String: Map]? = nil) async throws {
         guard let messenger = messenger else { return }
-        messenger.send(
+        try await messenger.send(
             ConnectionKeepAliveResponse(payload).toJSON(encoder)
         )
     }
-    
+
     /// Send a `data` response through the messenger
-    private func sendData(_ payload: GraphQLResult? = nil, id: String) {
+    private func sendData(_ payload: GraphQLResult? = nil, id: String) async throws {
         guard let messenger = messenger else { return }
-        messenger.send(
+        try await messenger.send(
             DataResponse(
                 payload,
                 id: id
             ).toJSON(encoder)
         )
     }
-    
+
     /// Send a `complete` response through the messenger
-    private func sendComplete(id: String) {
+    private func sendComplete(id: String) async throws {
         guard let messenger = messenger else { return }
-        messenger.send(
+        try await messenger.send(
             CompleteResponse(
                 id: id
             ).toJSON(encoder)
         )
-        onOperationComplete(id)
+        try await onOperationComplete(id)
     }
-    
+
     /// Send an `error` response through the messenger
-    private func sendError(_ errors: [Error], id: String) {
+    private func sendError(_ errors: [Error], id: String) async throws {
         guard let messenger = messenger else { return }
-        messenger.send(
+        try await messenger.send(
             ErrorResponse(
                 errors,
                 id: id
             ).toJSON(encoder)
         )
-        onOperationError(id, errors)
+        try await onOperationError(id, errors)
     }
-    
+
     /// Send an `error` response through the messenger
-    private func sendError(_ error: Error, id: String) {
-        self.sendError([error], id: id)
+    private func sendError(_ error: Error, id: String) async throws {
+        try await sendError([error], id: id)
     }
-    
+
     /// Send an `error` response through the messenger
-    private func sendError(_ errorMessage: String, id: String) {
-        self.sendError(GraphQLError(message: errorMessage), id: id)
+    private func sendError(_ errorMessage: String, id: String) async throws {
+        try await sendError(GraphQLError(message: errorMessage), id: id)
     }
-    
+
     /// Send an error through the messenger and close the connection
-    private func error(_ error: GraphQLWSError) {
+    private func error(_ error: GraphQLWSError) async throws {
         guard let messenger = messenger else { return }
-        messenger.error(error.message, code: error.code.rawValue)
+        try await messenger.error(error.message, code: error.code.rawValue)
     }
 }

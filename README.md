@@ -28,31 +28,31 @@ import GraphQLWS
 class WebSocketMessenger: Messenger {
     private weak var websocket: WebSocket?
     private var onReceive: (String) -> Void = { _ in }
-    
+
     init(websocket: WebSocket) {
         self.websocket = websocket
         websocket.onText { _, message in
-            self.onReceive(message)
+            try await self.onReceive(message)
         }
     }
-    
-    func send<S>(_ message: S) where S: Collection, S.Element == Character {
+
+    func send<S>(_ message: S) async throws where S: Collection, S.Element == Character async throws {
         guard let websocket = websocket else { return }
-        websocket.send(message)
+        try await websocket.send(message)
     }
-    
-    func onReceive(callback: @escaping (String) -> Void) {
+
+    func onReceive(callback: @escaping (String) async throws -> Void) {
         self.onReceive = callback
     }
-    
-    func error(_ message: String, code: Int) {
+
+    func error(_ message: String, code: Int) async throws {
         guard let websocket = websocket else { return }
-        websocket.send("\(code): \(message)")
+        try await websocket.send("\(code): \(message)")
     }
-    
-    func close() {
+
+    func close() async throws {
         guard let websocket = websocket else { return }
-        _ = websocket.close()
+        try await websocket.close()
     }
 }
 ```
@@ -67,7 +67,7 @@ routes.webSocket(
         let server = GraphQLWS.Server<EmptyInitPayload?>(
             messenger: messenger,
             onExecute: { graphQLRequest in
-                api.execute(
+                try await api.execute(
                     request: graphQLRequest.query,
                     context: context,
                     on: self.eventLoop,
@@ -76,7 +76,7 @@ routes.webSocket(
                 )
             },
             onSubscribe: { graphQLRequest in
-                api.subscribe(
+                try await api.subscribe(
                     request: graphQLRequest.query,
                     context: context,
                     on: self.eventLoop,
@@ -128,8 +128,8 @@ If the `payload` field is not required on your server, you may make Server's gen
 
 ## Memory Management
 
-Memory ownership among the Server, Client, and Messenger may seem a little backwards. This is because the Swift/Vapor WebSocket 
-implementation persists WebSocket objects long after their callback and they are expected to retain strong memory references to the 
+Memory ownership among the Server, Client, and Messenger may seem a little backwards. This is because the Swift/Vapor WebSocket
+implementation persists WebSocket objects long after their callback and they are expected to retain strong memory references to the
 objects required for responses. In order to align cleanly and avoid memory cycles, Server and Client are injected strongly into Messenger
 callbacks, and only hold weak references to their Messenger. This means that Messenger objects (or their enclosing WebSocket) must
 be persisted to have the connected Server or Client objects function. That is, if a Server's Messenger falls out of scope and deinitializes,

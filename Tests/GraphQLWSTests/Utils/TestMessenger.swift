@@ -9,30 +9,26 @@ import Foundation
 /// or risk them being deinitialized early
 class TestMessenger: Messenger {
     weak var other: TestMessenger?
-    var onReceive: (String) -> Void = { _ in }
+    var onReceive: (String) async throws -> Void = { _ in }
     let queue: DispatchQueue = .init(label: "Test messenger")
-    
+
     init() {}
-    
-    func send<S>(_ message: S) where S: Collection, S.Element == Character {
+
+    func send<S>(_ message: S) async throws where S: Collection, S.Element == Character {
         guard let other = other else {
             return
         }
-        
-        // Run the other message asyncronously to avoid nesting issues
-        queue.async {
-            other.onReceive(String(message))
-        }
+        try await other.onReceive(String(message))
     }
-    
-    func onReceive(callback: @escaping (String) -> Void) {
-        self.onReceive = callback
+
+    func onReceive(callback: @escaping (String) async throws -> Void) {
+        onReceive = callback
     }
-    
-    func error(_ message: String, code: Int) {
-        self.send("\(code): \(message)")
+
+    func error(_ message: String, code: Int) async throws {
+        try await send("\(code): \(message)")
     }
-    
+
     func close() {
         // This is a testing no-op
     }

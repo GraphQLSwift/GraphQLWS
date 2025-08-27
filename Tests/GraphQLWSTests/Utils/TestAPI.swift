@@ -16,7 +16,7 @@ struct TestAPI: API {
     }
 }
 
-final class TestContext {
+final class TestContext: Sendable {
     let publisher = SimplePubSub<String>()
 
     func hello() -> String {
@@ -35,7 +35,7 @@ struct TestResolver {
 }
 
 /// A very simple publish/subscriber used for testing
-class SimplePubSub<T> {
+class SimplePubSub<T: Sendable>: @unchecked Sendable {
     private var subscribers: [Subscriber<T>]
 
     init() {

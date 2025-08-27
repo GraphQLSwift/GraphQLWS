@@ -7,14 +7,14 @@ import Foundation
 ///
 /// Note that this only retains a weak reference to 'other', so the client should retain references
 /// or risk them being deinitialized early
-class TestMessenger: Messenger {
+class TestMessenger: Messenger, @unchecked Sendable {
     weak var other: TestMessenger?
     var onReceive: (String) async throws -> Void = { _ in }
     let queue: DispatchQueue = .init(label: "Test messenger")
 
     init() {}
 
-    func send<S>(_ message: S) async throws where S: Collection, S.Element == Character {
+    func send<S: Sendable>(_ message: S) async throws where S: Collection, S.Element == Character {
         guard let other = other else {
             return
         }

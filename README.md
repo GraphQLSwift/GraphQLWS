@@ -5,7 +5,7 @@ It is mainly intended for server support, but there is a basic client implementa
 
 Features:
 - Server implementation that implements defined protocol conversations
-- Client and Server types that wrap messengers
+- Server and Client message functions on messengers
 - Codable Server and Client message structures
 - Custom authentication support
 
@@ -64,8 +64,7 @@ routes.webSocket(
     "graphqlSubscribe",
     onUpgrade: { request, websocket in
         let messenger = WebSocketMessenger(websocket: websocket)
-        let server = GraphQLWS.Server<EmptyInitPayload?>(
-            messenger: messenger,
+        messenger.registerServer(
             onExecute: { graphQLRequest in
                 try await api.execute(
                     request: graphQLRequest.query,
@@ -100,16 +99,15 @@ struct UsernameAndPasswordInitPayload: Equatable & Codable {
     let password: String
 }
 
-let server = GraphQLWS.Server<UsernameAndPasswordInitPayload>(
-    messenger: messenger,
+messenger.registerServer(
     onExecute: { ... },
-    onSubscribe: { ... }
-)
-server.auth { payload in
-    guard payload.username == "admin" else {
-        throw Abort(.unauthorized)
+    onSubscribe: { ... },
+    auth { (payload: UsernameAndPasswordInitPayload) in
+        guard payload.username == "admin" else {
+            throw Abort(.unauthorized)
+        }
     }
-}
+)
 ```
 
 This example would require `connection_init` message from the client to look like this:
@@ -125,12 +123,3 @@ This example would require `connection_init` message from the client to look lik
 ```
 
 If the `payload` field is not required on your server, you may make Server's generic declaration optional like `Server<Payload?>`
-
-## Memory Management
-
-Memory ownership among the Server, Client, and Messenger may seem a little backwards. This is because the Swift/Vapor WebSocket
-implementation persists WebSocket objects long after their callback and they are expected to retain strong memory references to the
-objects required for responses. In order to align cleanly and avoid memory cycles, Server and Client are injected strongly into Messenger
-callbacks, and only hold weak references to their Messenger. This means that Messenger objects (or their enclosing WebSocket) must
-be persisted to have the connected Server or Client objects function. That is, if a Server's Messenger falls out of scope and deinitializes,
-the Server will no longer respond to messages.

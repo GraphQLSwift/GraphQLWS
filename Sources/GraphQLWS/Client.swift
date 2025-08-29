@@ -1,32 +1,28 @@
 import Foundation
 import GraphQL
 
-/// Client is an open-ended implementation of the client side of the protocol. It parses and adds callbacks for each type of server respose.
-public class Client<InitPayload: Equatable & Codable> {
-    // We keep this weak because we strongly inject this object into the messenger callback
-    weak var messenger: Messenger?
-
-    var onConnectionError: (ConnectionErrorResponse, Client) async throws -> Void = { _, _ in }
-    var onConnectionAck: (ConnectionAckResponse, Client) async throws -> Void = { _, _ in }
-    var onConnectionKeepAlive: (ConnectionKeepAliveResponse, Client) async throws -> Void = { _, _ in }
-    var onData: (DataResponse, Client) async throws -> Void = { _, _ in }
-    var onError: (ErrorResponse, Client) async throws -> Void = { _, _ in }
-    var onComplete: (CompleteResponse, Client) async throws -> Void = { _, _ in }
-    var onMessage: (String, Client) async throws -> Void = { _, _ in }
-
-    let encoder = GraphQLJSONEncoder()
-    let decoder = JSONDecoder()
-
-    /// Create a new client.
+public extension Messenger {
+    /// Register protocol client responses to the messenger.
     ///
     /// - Parameters:
-    ///   - messenger: The messenger to bind the client to.
-    public init(
-        messenger: Messenger
+    ///   - onConnectionAck: Callback run when a connection acknowledgment is received.
+    ///   - onConnectionKeepAlive: Callback run when a connection keep-alive message is received.
+    ///   - onConnectionError: Callback run when a connection error is received.
+    ///   - onData: Callback run when data is received.
+    ///   - onComplete: Callback run when a complete message is received.
+    ///   - onError: Callback run when an error message is received.
+    ///   - onMessage: Callback run on receipt of any message. Typically used for logging/debugging.
+    func registerClient(
+        onConnectionAck: @escaping (ConnectionAckResponse, Self) async throws -> Void = { _, _ in },
+        onConnectionKeepAlive: @escaping (ConnectionKeepAliveResponse, Self) async throws -> Void = { _, _ in },
+        onConnectionError: @escaping (ConnectionErrorResponse, Self) async throws -> Void = { _, _ in },
+        onData: @escaping (DataResponse, Self) async throws -> Void = { _, _ in },
+        onComplete: @escaping (CompleteResponse, Self) async throws -> Void = { _, _ in },
+        onError: @escaping (ErrorResponse, Self) async throws -> Void = { _, _ in },
+        onMessage: @escaping (String, Self) async throws -> Void = { _, _ in }
     ) {
-        self.messenger = messenger
-        messenger.onReceive { message in
-            try await self.onMessage(message, self)
+        onReceive { message in
+            try await onMessage(message, self)
 
             // Detect and ignore error responses.
             if message.starts(with: "44") {
@@ -41,7 +37,7 @@ public class Client<InitPayload: Equatable & Codable> {
 
             let response: Response
             do {
-                response = try self.decoder.decode(Response.self, from: json)
+                response = try decoder.decode(Response.self, from: json)
             } catch {
                 try await self.error(.noType())
                 return
@@ -49,93 +45,50 @@ public class Client<InitPayload: Equatable & Codable> {
 
             switch response.type {
             case .GQL_CONNECTION_ERROR:
-                guard let connectionErrorResponse = try? self.decoder.decode(ConnectionErrorResponse.self, from: json) else {
+                guard let connectionErrorResponse = try? decoder.decode(ConnectionErrorResponse.self, from: json) else {
                     try await self.error(.invalidResponseFormat(messageType: .GQL_CONNECTION_ERROR))
                     return
                 }
-                try await self.onConnectionError(connectionErrorResponse, self)
+                try await onConnectionError(connectionErrorResponse, self)
             case .GQL_CONNECTION_ACK:
-                guard let connectionAckResponse = try? self.decoder.decode(ConnectionAckResponse.self, from: json) else {
+                guard let connectionAckResponse = try? decoder.decode(ConnectionAckResponse.self, from: json) else {
                     try await self.error(.invalidResponseFormat(messageType: .GQL_CONNECTION_ERROR))
                     return
                 }
-                try await self.onConnectionAck(connectionAckResponse, self)
+                try await onConnectionAck(connectionAckResponse, self)
             case .GQL_CONNECTION_KEEP_ALIVE:
-                guard let connectionKeepAliveResponse = try? self.decoder.decode(ConnectionKeepAliveResponse.self, from: json) else {
+                guard let connectionKeepAliveResponse = try? decoder.decode(ConnectionKeepAliveResponse.self, from: json) else {
                     try await self.error(.invalidResponseFormat(messageType: .GQL_CONNECTION_KEEP_ALIVE))
                     return
                 }
-                try await self.onConnectionKeepAlive(connectionKeepAliveResponse, self)
+                try await onConnectionKeepAlive(connectionKeepAliveResponse, self)
             case .GQL_DATA:
-                guard let nextResponse = try? self.decoder.decode(DataResponse.self, from: json) else {
+                guard let nextResponse = try? decoder.decode(DataResponse.self, from: json) else {
                     try await self.error(.invalidResponseFormat(messageType: .GQL_DATA))
                     return
                 }
-                try await self.onData(nextResponse, self)
+                try await onData(nextResponse, self)
             case .GQL_ERROR:
-                guard let errorResponse = try? self.decoder.decode(ErrorResponse.self, from: json) else {
+                guard let errorResponse = try? decoder.decode(ErrorResponse.self, from: json) else {
                     try await self.error(.invalidResponseFormat(messageType: .GQL_ERROR))
                     return
                 }
-                try await self.onError(errorResponse, self)
+                try await onError(errorResponse, self)
             case .GQL_COMPLETE:
-                guard let completeResponse = try? self.decoder.decode(CompleteResponse.self, from: json) else {
+                guard let completeResponse = try? decoder.decode(CompleteResponse.self, from: json) else {
                     try await self.error(.invalidResponseFormat(messageType: .GQL_COMPLETE))
                     return
                 }
-                try await self.onComplete(completeResponse, self)
+                try await onComplete(completeResponse, self)
             case .unknown:
                 try await self.error(.invalidType())
             }
         }
     }
 
-    /// Define the callback run on receipt of a `connection_error` message
-    /// - Parameter callback: The callback to assign
-    public func onConnectionError(_ callback: @escaping (ConnectionErrorResponse, Client) async throws -> Void) {
-        onConnectionError = callback
-    }
-
-    /// Define the callback run on receipt of a `connection_ack` message
-    /// - Parameter callback: The callback to assign
-    public func onConnectionAck(_ callback: @escaping (ConnectionAckResponse, Client) async throws -> Void) {
-        onConnectionAck = callback
-    }
-
-    /// Define the callback run on receipt of a `connection_ka` message
-    /// - Parameter callback: The callback to assign
-    public func onConnectionKeepAlive(_ callback: @escaping (ConnectionKeepAliveResponse, Client) async throws -> Void) {
-        onConnectionKeepAlive = callback
-    }
-
-    /// Define the callback run on receipt of a `data` message
-    /// - Parameter callback: The callback to assign
-    public func onData(_ callback: @escaping (DataResponse, Client) async throws -> Void) {
-        onData = callback
-    }
-
-    /// Define the callback run on receipt of an `error` message
-    /// - Parameter callback: The callback to assign
-    public func onError(_ callback: @escaping (ErrorResponse, Client) async throws -> Void) {
-        onError = callback
-    }
-
-    /// Define the callback run on receipt of any message
-    /// - Parameter callback: The callback to assign
-    public func onComplete(_ callback: @escaping (CompleteResponse, Client) async throws -> Void) {
-        onComplete = callback
-    }
-
-    /// Define the callback run on receipt of a `complete` message
-    /// - Parameter callback: The callback to assign
-    public func onMessage(_ callback: @escaping (String, Client) async throws -> Void) {
-        onMessage = callback
-    }
-
     /// Send a `connection_init` request through the messenger
-    public func sendConnectionInit(payload: InitPayload) async throws {
-        guard let messenger = messenger else { return }
-        try await messenger.send(
+    func sendConnectionInit<InitPayload: Equatable & Codable>(payload: InitPayload) async throws {
+        try await send(
             ConnectionInitRequest(
                 payload: payload
             ).toJSON(encoder)
@@ -143,9 +96,8 @@ public class Client<InitPayload: Equatable & Codable> {
     }
 
     /// Send a `start` request through the messenger
-    public func sendStart(payload: GraphQLRequest, id: String) async throws {
-        guard let messenger = messenger else { return }
-        try await messenger.send(
+    func sendStart(payload: GraphQLRequest, id: String) async throws {
+        try await send(
             StartRequest(
                 payload: payload,
                 id: id
@@ -154,9 +106,8 @@ public class Client<InitPayload: Equatable & Codable> {
     }
 
     /// Send a `stop` request through the messenger
-    public func sendStop(id: String) async throws {
-        guard let messenger = messenger else { return }
-        try await messenger.send(
+    func sendStop(id: String) async throws {
+        try await send(
             StopRequest(
                 id: id
             ).toJSON(encoder)
@@ -164,16 +115,12 @@ public class Client<InitPayload: Equatable & Codable> {
     }
 
     /// Send a `connection_terminate` request through the messenger
-    public func sendConnectionTerminate() async throws {
-        guard let messenger = messenger else { return }
-        try await messenger.send(
+    func sendConnectionTerminate() async throws {
+        try await send(
             ConnectionTerminateRequest().toJSON(encoder)
         )
     }
-
-    /// Send an error through the messenger and close the connection
-    private func error(_ error: GraphQLWSError) async throws {
-        guard let messenger = messenger else { return }
-        try await messenger.error(error.message, code: error.code.rawValue)
-    }
 }
+
+private let encoder = GraphQLJSONEncoder()
+private let decoder = JSONDecoder()

@@ -2,7 +2,7 @@ import Foundation
 import Graphiti
 import GraphQL
 
-struct TestAPI: API {
+struct TestAPI: API, @unchecked Sendable {
     let resolver = TestResolver()
     let context = TestContext()
 

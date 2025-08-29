@@ -6,23 +6,18 @@ import XCTest
 @testable import GraphQLWS
 
 class GraphqlWsTests: XCTestCase {
-    var clientMessenger: TestMessenger!
-    var serverMessenger: TestMessenger!
-    var server: Server<TokenInitPayload>!
-    var context: TestContext!
-
-    override func setUp() {
+    func setUp(
+        auth: @escaping @Sendable (TokenInitPayload) async throws -> Void = { (_: TokenInitPayload) in }
+    ) -> (client: TestMessenger, server: TestMessenger, context: TestContext) {
         // Point the client and server at each other
-        clientMessenger = TestMessenger()
-        serverMessenger = TestMessenger()
+        let clientMessenger = TestMessenger()
+        let serverMessenger = TestMessenger()
         clientMessenger.other = serverMessenger
         serverMessenger.other = clientMessenger
 
         let api = TestAPI()
         let context = TestContext()
-
-        server = Server<TokenInitPayload>(
-            messenger: serverMessenger,
+        serverMessenger.registerServer(
             onExecute: { graphQLRequest in
                 try await api.execute(
                     request: graphQLRequest.query,
@@ -34,26 +29,30 @@ class GraphqlWsTests: XCTestCase {
                     request: graphQLRequest.query,
                     context: context
                 )
-            }
+            },
+            auth: auth
         )
-        self.context = context
+
+        return (client: clientMessenger, server: serverMessenger, context: context)
     }
 
     /// Tests that trying to run methods before `connection_init` is not allowed
     func testInitialize() async throws {
-        let client = Client<TokenInitPayload>(messenger: clientMessenger)
+        let (clientMessenger, _, _) = setUp()
         let messageStream = AsyncThrowingStream<String, any Error> { continuation in
-            client.onMessage { message, _ in
-                continuation.yield(message)
-                // Expect only one message
-                continuation.finish()
-            }
-            client.onError { message, _ in
-                continuation.finish(throwing: message.payload[0])
-            }
+            clientMessenger.registerClient(
+                onError: { message, _ in
+                    continuation.finish(throwing: message.payload[0])
+                },
+                onMessage: { message, _ in
+                    continuation.yield(message)
+                    // Expect only one message
+                    continuation.finish()
+                }
+            )
         }
 
-        try await client.sendStart(
+        try await clientMessenger.sendStart(
             payload: GraphQLRequest(
                 query: """
                 query {
@@ -75,23 +74,24 @@ class GraphqlWsTests: XCTestCase {
 
     /// Tests that throwing in the authorization callback forces an unauthorized error
     func testAuthWithThrow() async throws {
-        server.auth { _ in
+        let (clientMessenger, _, _) = setUp { _ in
             throw TestError.couldBeAnything
         }
 
-        let client = Client<TokenInitPayload>(messenger: clientMessenger)
         let messageStream = AsyncThrowingStream<String, any Error> { continuation in
-            client.onMessage { message, _ in
-                continuation.yield(message)
-                // Expect only one message
-                continuation.finish()
-            }
-            client.onError { message, _ in
-                continuation.finish(throwing: message.payload[0])
-            }
+            clientMessenger.registerClient(
+                onError: { message, _ in
+                    continuation.finish(throwing: message.payload[0])
+                },
+                onMessage: { message, _ in
+                    continuation.yield(message)
+                    // Expect only one message
+                    continuation.finish()
+                }
+            )
         }
 
-        try await client.sendConnectionInit(
+        try await clientMessenger.sendConnectionInit(
             payload: TokenInitPayload(
                 authToken: ""
             )
@@ -108,34 +108,36 @@ class GraphqlWsTests: XCTestCase {
 
     /// Test single op message flow works as expected
     func testSingleOp() async throws {
+        let (clientMessenger, _, _) = setUp()
         let id = UUID().description
 
-        let client = Client<TokenInitPayload>(messenger: clientMessenger)
         let messageStream = AsyncThrowingStream<String, any Error> { continuation in
-            client.onConnectionAck { _, client in
-                try await client.sendStart(
-                    payload: GraphQLRequest(
-                        query: """
-                        query {
-                            hello
-                        }
-                        """
-                    ),
-                    id: id
-                )
-            }
-            client.onMessage { message, _ in
-                continuation.yield(message)
-            }
-            client.onError { message, _ in
-                continuation.finish(throwing: message.payload[0])
-            }
-            client.onComplete { _, _ in
-                continuation.finish()
-            }
+            clientMessenger.registerClient(
+                onConnectionAck: { _, client in
+                    try await client.sendStart(
+                        payload: GraphQLRequest(
+                            query: """
+                            query {
+                                hello
+                            }
+                            """
+                        ),
+                        id: id
+                    )
+                },
+                onComplete: { _, _ in
+                    continuation.finish()
+                },
+                onError: { message, _ in
+                    continuation.finish(throwing: message.payload[0])
+                },
+                onMessage: { message, _ in
+                    continuation.yield(message)
+                }
+            )
         }
 
-        try await client.sendConnectionInit(payload: TokenInitPayload(authToken: ""))
+        try await clientMessenger.sendConnectionInit(payload: TokenInitPayload(authToken: ""))
 
         let messages = try await messageStream.reduce(into: [String]()) { result, message in
             result.append(message)
@@ -149,50 +151,52 @@ class GraphqlWsTests: XCTestCase {
 
     /// Test streaming message flow works as expected
     func testStreaming() async throws {
+        let (clientMessenger, _, context) = setUp()
         let id = UUID().description
 
         var dataIndex = 1
         let dataIndexMax = 3
 
-        let client = Client<TokenInitPayload>(messenger: clientMessenger)
         let messageStream = AsyncThrowingStream<String, any Error> { continuation in
-            client.onConnectionAck { _, client in
-                try await client.sendStart(
-                    payload: GraphQLRequest(
-                        query: """
-                        subscription {
-                            hello
-                        }
-                        """
-                    ),
-                    id: id
-                )
+            clientMessenger.registerClient(
+                onConnectionAck: { _, client in
+                    try await client.sendStart(
+                        payload: GraphQLRequest(
+                            query: """
+                            subscription {
+                                hello
+                            }
+                            """
+                        ),
+                        id: id
+                    )
 
-                // Short sleep to allow for server to register subscription
-                usleep(3000)
+                    // Short sleep to allow for server to register subscription
+                    usleep(3000)
 
-                self.context.publisher.emit(event: "hello \(dataIndex)")
-            }
-            client.onData { _, _ in
-                dataIndex = dataIndex + 1
-                if dataIndex <= dataIndexMax {
-                    self.context.publisher.emit(event: "hello \(dataIndex)")
-                } else {
-                    self.context.publisher.cancel()
+                    context.publisher.emit(event: "hello \(dataIndex)")
+                },
+                onData: { _, _ in
+                    dataIndex = dataIndex + 1
+                    if dataIndex <= dataIndexMax {
+                        context.publisher.emit(event: "hello \(dataIndex)")
+                    } else {
+                        context.publisher.cancel()
+                    }
+                },
+                onComplete: { _, _ in
+                    continuation.finish()
+                },
+                onError: { message, _ in
+                    continuation.finish(throwing: message.payload[0])
+                },
+                onMessage: { message, _ in
+                    continuation.yield(message)
                 }
-            }
-            client.onMessage { message, _ in
-                continuation.yield(message)
-            }
-            client.onError { message, _ in
-                continuation.finish(throwing: message.payload[0])
-            }
-            client.onComplete { _, _ in
-                continuation.finish()
-            }
+            )
         }
 
-        try await client.sendConnectionInit(payload: TokenInitPayload(authToken: ""))
+        try await clientMessenger.sendConnectionInit(payload: TokenInitPayload(authToken: ""))
 
         let messages = try await messageStream.reduce(into: [String]()) { result, message in
             result.append(message)

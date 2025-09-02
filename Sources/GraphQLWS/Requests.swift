@@ -18,7 +18,7 @@ struct Request: Equatable, JsonEncodable {
 }
 
 /// A websocket `connection_init` request from the client to the server
-public struct ConnectionInitRequest<InitPayload: Codable & Equatable>: Equatable, JsonEncodable {
+public struct ConnectionInitRequest<InitPayload: Codable>: JsonEncodable {
     var type = RequestMessageType.GQL_CONNECTION_INIT
     let payload: InitPayload
 }

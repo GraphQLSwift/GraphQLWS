@@ -87,7 +87,7 @@ public extension Messenger {
     }
 
     /// Send a `connection_init` request through the messenger
-    func sendConnectionInit<InitPayload: Equatable & Codable>(payload: InitPayload) async throws {
+    func sendConnectionInit<InitPayload: Codable>(payload: InitPayload) async throws {
         try await send(
             ConnectionInitRequest(
                 payload: payload

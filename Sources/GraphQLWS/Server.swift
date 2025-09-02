@@ -13,7 +13,7 @@ public extension Messenger {
     ///   - onOperationComplete: Callback run on the completion a full operation (query/mutation, end of subscription).
     ///   - onOperationError: Callback to run on error of any full operation (failed query, interrupted subscription).
     ///   - onMessage: Callback run on receipt of any message. Typically used for logging/debugging.
-    func registerServer<InitPayload: Equatable & Codable>(
+    func registerServer<InitPayload: Codable>(
         onExecute: @escaping @Sendable (GraphQLRequest) async throws -> GraphQLResult,
         onSubscribe: @escaping @Sendable (GraphQLRequest) async throws -> Result<AsyncThrowingStream<GraphQLResult, Error>, GraphQLErrors>,
         auth: @escaping @Sendable (InitPayload) async throws -> Void = { (_: BlankInitPayload) in },

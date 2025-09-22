@@ -101,6 +101,10 @@ public class Server<
         }
     }
 
+    deinit {
+        subscriptionTasks.values.forEach { $0.cancel() }
+    }
+
     /// Define a custom callback run during `connection_init` resolution that allows authorization using the `payload`.
     /// Throw from this closure to indicate that authorization has failed.
     /// - Parameter callback: The callback to assign
@@ -176,18 +180,15 @@ public class Server<
                     let stream = try await onSubscribe(graphQLRequest)
                     for try await event in stream {
                         try Task.checkCancellation()
-                        do {
-                            try await self.sendData(event, id: id)
-                        } catch {
-                            try await self.sendError(error, id: id)
-                            throw error
-                        }
+                        try await self.sendData(event, id: id)
                     }
                 } catch {
                     try await sendError(error, id: id)
+                    subscriptionTasks.removeValue(forKey: id)
                     throw error
                 }
                 try await self.sendComplete(id: id)
+                subscriptionTasks.removeValue(forKey: id)
             }
         } else {
             do {

@@ -13,7 +13,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/GraphQLSwift/Graphiti.git", from: "3.0.0"),
-        .package(url: "https://github.com/GraphQLSwift/GraphQL.git", from: "4.0.0"),
+        .package(url: "https://github.com/GraphQLSwift/GraphQL.git", from: "4.0.1"),
     ],
     targets: [
         .target(

@@ -8,7 +8,7 @@ import XCTest
 class GraphqlWsTests: XCTestCase {
     var clientMessenger: TestMessenger!
     var serverMessenger: TestMessenger!
-    var server: Server<TokenInitPayload>!
+    var server: Server<TokenInitPayload, AsyncThrowingStream<GraphQLResult, Error>>!
     var context: TestContext!
 
     override func setUp() {
@@ -21,7 +21,7 @@ class GraphqlWsTests: XCTestCase {
         let api = TestAPI()
         let context = TestContext()
 
-        server = Server<TokenInitPayload>(
+        server = .init(
             messenger: serverMessenger,
             onExecute: { graphQLRequest in
                 try await api.execute(
@@ -33,7 +33,7 @@ class GraphqlWsTests: XCTestCase {
                 try await api.subscribe(
                     request: graphQLRequest.query,
                     context: context
-                )
+                ).get()
             }
         )
         self.context = context

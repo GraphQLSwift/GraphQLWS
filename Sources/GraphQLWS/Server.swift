@@ -4,12 +4,17 @@ import GraphQL
 /// Server implements the server-side portion of the protocol, allowing a few callbacks for customization.
 ///
 /// By default, there are no authorization checks
-public class Server<InitPayload: Equatable & Codable>: @unchecked Sendable {
+public class Server<
+    InitPayload: Equatable & Codable & Sendable,
+    SubscriptionSequenceType: AsyncSequence & Sendable
+>: @unchecked Sendable where
+    SubscriptionSequenceType.Element == GraphQLResult
+{
     // We keep this weak because we strongly inject this object into the messenger callback
     weak var messenger: Messenger?
 
     let onExecute: (GraphQLRequest) async throws -> GraphQLResult
-    let onSubscribe: (GraphQLRequest) async throws -> Result<AsyncThrowingStream<GraphQLResult, Error>, GraphQLErrors>
+    let onSubscribe: (GraphQLRequest) async throws -> SubscriptionSequenceType
     var auth: (InitPayload) async throws -> Void
 
     var onExit: () async throws -> Void = {}
@@ -33,7 +38,7 @@ public class Server<InitPayload: Equatable & Codable>: @unchecked Sendable {
     public init(
         messenger: Messenger,
         onExecute: @escaping (GraphQLRequest) async throws -> GraphQLResult,
-        onSubscribe: @escaping (GraphQLRequest) async throws -> Result<AsyncThrowingStream<GraphQLResult, Error>, GraphQLErrors>
+        onSubscribe: @escaping (GraphQLRequest) async throws -> SubscriptionSequenceType
     ) {
         self.messenger = messenger
         self.onExecute = onExecute
@@ -166,16 +171,9 @@ public class Server<InitPayload: Equatable & Codable>: @unchecked Sendable {
         }
 
         if isStreaming {
-            do {
-                let result = try await onSubscribe(graphQLRequest)
-                let stream: AsyncThrowingStream<GraphQLResult, Error>
+            subscriptionTasks[id] = Task {
                 do {
-                    stream = try result.get()
-                } catch {
-                    try await sendError(error, id: id)
-                    return
-                }
-                subscriptionTasks[id] = Task {
+                    let stream = try await onSubscribe(graphQLRequest)
                     for try await event in stream {
                         try Task.checkCancellation()
                         do {
@@ -185,10 +183,11 @@ public class Server<InitPayload: Equatable & Codable>: @unchecked Sendable {
                             throw error
                         }
                     }
-                    try await self.sendComplete(id: id)
+                } catch {
+                    try await sendError(error, id: id)
+                    throw error
                 }
-            } catch {
-                try await sendError(error, id: id)
+                try await self.sendComplete(id: id)
             }
         } else {
             do {

@@ -10,6 +10,7 @@ class GraphqlWsTests: XCTestCase {
     var serverMessenger: TestMessenger!
     var server: Server<TokenInitPayload, AsyncThrowingStream<GraphQLResult, Error>>!
     var context: TestContext!
+    var subscribeReady: Bool! = false
 
     override func setUp() {
         // Point the client and server at each other
@@ -30,10 +31,12 @@ class GraphqlWsTests: XCTestCase {
                 )
             },
             onSubscribe: { graphQLRequest in
-                try await api.subscribe(
+                let subscription = try await api.subscribe(
                     request: graphQLRequest.query,
                     context: context
                 ).get()
+                self.subscribeReady = true
+                return subscription
             }
         )
         self.context = context
@@ -168,8 +171,15 @@ class GraphqlWsTests: XCTestCase {
                     id: id
                 )
 
-                // Short sleep to allow for server to register subscription
-                usleep(3000)
+                // Wait until server has registered subscription
+                var i = 0
+                while !self.subscribeReady, i < 50 {
+                    usleep(1000)
+                    i = i + 1
+                }
+                if i == 50 {
+                    XCTFail("Subscription timeout: Took longer than 50ms to set up")
+                }
 
                 self.context.publisher.emit(event: "hello \(dataIndex)")
             }

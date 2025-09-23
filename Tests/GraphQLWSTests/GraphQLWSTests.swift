@@ -1,7 +1,6 @@
 import Foundation
 
 import GraphQL
-import NIO
 import XCTest
 
 @testable import GraphQLWS
@@ -9,224 +8,212 @@ import XCTest
 class GraphqlWsTests: XCTestCase {
     var clientMessenger: TestMessenger!
     var serverMessenger: TestMessenger!
-    var server: Server<TokenInitPayload>!
-    var eventLoop: EventLoop!
-    
+    var server: Server<TokenInitPayload, AsyncThrowingStream<GraphQLResult, Error>>!
+    var context: TestContext!
+    var subscribeReady: Bool! = false
+
     override func setUp() {
         // Point the client and server at each other
         clientMessenger = TestMessenger()
         serverMessenger = TestMessenger()
         clientMessenger.other = serverMessenger
         serverMessenger.other = clientMessenger
-        
-        eventLoop = MultiThreadedEventLoopGroup(numberOfThreads: 1).next()
+
         let api = TestAPI()
         let context = TestContext()
-        
-        server = Server<TokenInitPayload>(
+
+        server = .init(
             messenger: serverMessenger,
             onExecute: { graphQLRequest in
-                api.execute(
+                try await api.execute(
                     request: graphQLRequest.query,
-                    context: context,
-                    on: self.eventLoop
+                    context: context
                 )
             },
             onSubscribe: { graphQLRequest in
-                api.subscribe(
+                let subscription = try await api.subscribe(
                     request: graphQLRequest.query,
-                    context: context,
-                    on: self.eventLoop
-                )
-            },
-            eventLoop: self.eventLoop
+                    context: context
+                ).get()
+                self.subscribeReady = true
+                return subscription
+            }
         )
+        self.context = context
     }
-    
+
     /// Tests that trying to run methods before `connection_init` is not allowed
-    func testInitialize() throws {
-        var messages = [String]()
-        let completeExpectation = XCTestExpectation()
-        
+    func testInitialize() async throws {
         let client = Client<TokenInitPayload>(messenger: clientMessenger)
-        client.onMessage { message, _ in
-            messages.append(message)
-            completeExpectation.fulfill()
+        let messageStream = AsyncThrowingStream<String, any Error> { continuation in
+            client.onMessage { message, _ in
+                continuation.yield(message)
+                // Expect only one message
+                continuation.finish()
+            }
+            client.onError { message, _ in
+                continuation.finish(throwing: message.payload[0])
+            }
         }
-        
-        client.sendStart(
+
+        try await client.sendStart(
             payload: GraphQLRequest(
                 query: """
-                    query {
-                        hello
-                    }
-                    """
+                query {
+                    hello
+                }
+                """
             ),
             id: UUID().uuidString
         )
-        
-        wait(for: [completeExpectation], timeout: 2)
+
+        let messages = try await messageStream.reduce(into: [String]()) { result, message in
+            result.append(message)
+        }
         XCTAssertEqual(
             messages,
             ["\(ErrorCode.notInitialized): Connection not initialized"]
         )
     }
-    
+
     /// Tests that throwing in the authorization callback forces an unauthorized error
-    func testAuthWithThrow() throws {
-        server.auth { payload in
+    func testAuthWithThrow() async throws {
+        server.auth { _ in
             throw TestError.couldBeAnything
         }
-        
-        var messages = [String]()
-        let completeExpectation = XCTestExpectation()
-        
+
         let client = Client<TokenInitPayload>(messenger: clientMessenger)
-        client.onMessage { message, _ in
-            messages.append(message)
-            completeExpectation.fulfill()
+        let messageStream = AsyncThrowingStream<String, any Error> { continuation in
+            client.onMessage { message, _ in
+                continuation.yield(message)
+                // Expect only one message
+                continuation.finish()
+            }
+            client.onError { message, _ in
+                continuation.finish(throwing: message.payload[0])
+            }
         }
-        
-        client.sendConnectionInit(
+
+        try await client.sendConnectionInit(
             payload: TokenInitPayload(
                 authToken: ""
             )
         )
-        
-        wait(for: [completeExpectation], timeout: 2)
+
+        let messages = try await messageStream.reduce(into: [String]()) { result, message in
+            result.append(message)
+        }
         XCTAssertEqual(
             messages,
             ["\(ErrorCode.unauthorized): Unauthorized"]
         )
     }
-    
-    /// Tests that failing a future in the authorization callback forces an unauthorized error
-    func testAuthWithFailedFuture() throws {
-        server.auth { payload in
-            self.eventLoop.makeFailedFuture(TestError.couldBeAnything)
-        }
-        
-        var messages = [String]()
-        let completeExpectation = XCTestExpectation()
-        
-        let client = Client<TokenInitPayload>(messenger: clientMessenger)
-        client.onMessage { message, _ in
-            messages.append(message)
-            completeExpectation.fulfill()
-        }
-        
-        client.sendConnectionInit(
-            payload: TokenInitPayload(
-                authToken: ""
-            )
-        )
-        
-        wait(for: [completeExpectation], timeout: 2)
-        XCTAssertEqual(
-            messages,
-            ["\(ErrorCode.unauthorized): Unauthorized"]
-        )
-    }
-    
+
     /// Test single op message flow works as expected
-    func testSingleOp() throws {
+    func testSingleOp() async throws {
         let id = UUID().description
-        
-        // Test single-op conversation
-        var messages = [String]()
-        let completeExpectation = XCTestExpectation()
-        
+
         let client = Client<TokenInitPayload>(messenger: clientMessenger)
-        
-        client.onConnectionAck { _, client in
-            client.sendStart(
-                payload: GraphQLRequest(
-                    query: """
-                    query {
-                        hello
-                    }
-                    """
-                ),
-                id: id
-            )
+        let messageStream = AsyncThrowingStream<String, any Error> { continuation in
+            client.onConnectionAck { _, client in
+                try await client.sendStart(
+                    payload: GraphQLRequest(
+                        query: """
+                        query {
+                            hello
+                        }
+                        """
+                    ),
+                    id: id
+                )
+            }
+            client.onMessage { message, _ in
+                continuation.yield(message)
+            }
+            client.onError { message, _ in
+                continuation.finish(throwing: message.payload[0])
+            }
+            client.onComplete { _, _ in
+                continuation.finish()
+            }
         }
-        client.onError { _, _ in
-            completeExpectation.fulfill()
+
+        try await client.sendConnectionInit(payload: TokenInitPayload(authToken: ""))
+
+        let messages = try await messageStream.reduce(into: [String]()) { result, message in
+            result.append(message)
         }
-        client.onComplete { _, _ in
-            completeExpectation.fulfill()
-        }
-        client.onMessage { message, _ in
-            messages.append(message)
-        }
-        
-        client.sendConnectionInit(payload: TokenInitPayload(authToken: ""))
-        
-        wait(for: [completeExpectation], timeout: 2)
         XCTAssertEqual(
             messages.count,
             3, // 1 connection_ack, 1 data, 1 complete
             "Messages: \(messages.description)"
         )
     }
-    
+
     /// Test streaming message flow works as expected
-    func testStreaming() throws {
+    func testStreaming() async throws {
         let id = UUID().description
-        
-        // Test streaming conversation
-        var messages = [String]()
-        let completeExpectation = XCTestExpectation()
-        
+
         var dataIndex = 1
         let dataIndexMax = 3
-        
+
         let client = Client<TokenInitPayload>(messenger: clientMessenger)
-        client.onConnectionAck { _, client in
-            client.sendStart(
-                payload: GraphQLRequest(
-                    query: """
-                    subscription {
-                        hello
-                    }
-                    """
-                ),
-                id: id
-            )
-            
-            // Short sleep to allow for server to register subscription
-            usleep(3000)
-            
-            pubsub.onNext("hello \(dataIndex)")
-        }
-        client.onData { _, _ in
-            dataIndex = dataIndex + 1
-            if dataIndex <= dataIndexMax {
-                pubsub.onNext("hello \(dataIndex)")
-            } else {
-                pubsub.onCompleted()
+        let messageStream = AsyncThrowingStream<String, any Error> { continuation in
+            client.onConnectionAck { _, client in
+                try await client.sendStart(
+                    payload: GraphQLRequest(
+                        query: """
+                        subscription {
+                            hello
+                        }
+                        """
+                    ),
+                    id: id
+                )
+
+                // Wait until server has registered subscription
+                var i = 0
+                while !self.subscribeReady, i < 50 {
+                    usleep(1000)
+                    i = i + 1
+                }
+                if i == 50 {
+                    XCTFail("Subscription timeout: Took longer than 50ms to set up")
+                }
+
+                self.context.publisher.emit(event: "hello \(dataIndex)")
+            }
+            client.onData { _, _ in
+                dataIndex = dataIndex + 1
+                if dataIndex <= dataIndexMax {
+                    self.context.publisher.emit(event: "hello \(dataIndex)")
+                } else {
+                    self.context.publisher.cancel()
+                }
+            }
+            client.onMessage { message, _ in
+                continuation.yield(message)
+            }
+            client.onError { message, _ in
+                continuation.finish(throwing: message.payload[0])
+            }
+            client.onComplete { _, _ in
+                continuation.finish()
             }
         }
-        client.onError { _, _ in
-            completeExpectation.fulfill()
+
+        try await client.sendConnectionInit(payload: TokenInitPayload(authToken: ""))
+
+        let messages = try await messageStream.reduce(into: [String]()) { result, message in
+            result.append(message)
         }
-        client.onComplete { _, _ in
-            completeExpectation.fulfill()
-        }
-        client.onMessage { message, _ in
-            messages.append(message)
-        }
-        
-        client.sendConnectionInit(payload: TokenInitPayload(authToken: ""))
-        
-        wait(for: [completeExpectation], timeout: 2)
         XCTAssertEqual(
             messages.count,
             5, // 1 connection_ack, 3 data, 1 complete
             "Messages: \(messages.description)"
         )
     }
-    
+
     enum TestError: Error {
         case couldBeAnything
     }

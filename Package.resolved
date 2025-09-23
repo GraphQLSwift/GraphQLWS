@@ -6,8 +6,8 @@
         "repositoryURL": "https://github.com/GraphQLSwift/Graphiti.git",
         "state": {
           "branch": null,
-          "revision": "c9bc9d1cc9e62e71a824dc178630bfa8b8a6e2a4",
-          "version": "1.0.0"
+          "revision": "a23a3d232df202fc158ad2d698926325b470523c",
+          "version": "3.0.0"
         }
       },
       {
@@ -15,26 +15,8 @@
         "repositoryURL": "https://github.com/GraphQLSwift/GraphQL.git",
         "state": {
           "branch": null,
-          "revision": "283cc4de56b994a00b2724328221b7a1bc846ddc",
-          "version": "2.2.1"
-        }
-      },
-      {
-        "package": "GraphQLRxSwift",
-        "repositoryURL": "https://github.com/GraphQLSwift/GraphQLRxSwift.git",
-        "state": {
-          "branch": null,
-          "revision": "c7ec6595f92ef5d77c06852e4acc4cd46a753622",
-          "version": "0.0.4"
-        }
-      },
-      {
-        "package": "RxSwift",
-        "repositoryURL": "https://github.com/ReactiveX/RxSwift.git",
-        "state": {
-          "branch": null,
-          "revision": "b4307ba0b6425c0ba4178e138799946c3da594f8",
-          "version": "6.5.0"
+          "revision": "0fe18bc0bbbc9ab8929c285f419adea7c8fc7da2",
+          "version": "4.0.1"
         }
       },
       {
@@ -42,17 +24,8 @@
         "repositoryURL": "https://github.com/apple/swift-collections",
         "state": {
           "branch": null,
-          "revision": "48254824bb4248676bf7ce56014ff57b142b77eb",
-          "version": "1.0.2"
-        }
-      },
-      {
-        "package": "swift-nio",
-        "repositoryURL": "https://github.com/apple/swift-nio.git",
-        "state": {
-          "branch": null,
-          "revision": "154f1d32366449dcccf6375a173adf4ed2a74429",
-          "version": "2.38.0"
+          "revision": "8c0c0a8b49e080e54e5e328cc552821ff07cd341",
+          "version": "1.2.1"
         }
       }
     ]

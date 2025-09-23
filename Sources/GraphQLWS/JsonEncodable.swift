@@ -12,8 +12,7 @@ extension JsonEncodable {
         let data: Data
         do {
             data = try encoder.encode(self)
-        }
-        catch {
+        } catch {
             return EncodingErrorResponse("Unable to encode response").toJSON(encoder)
         }
         guard let body = String(data: data, encoding: .utf8) else {

@@ -84,7 +84,7 @@ public class Client<InitPayload: Equatable & Codable> {
                     return
                 }
                 try await self.onComplete(completeResponse, self)
-            case .unknown:
+            default:
                 try await self.error(.invalidType())
             }
         }

@@ -3,7 +3,7 @@ import Foundation
 import GraphQL
 import XCTest
 
-@testable import GraphQLWS
+import GraphQLWS
 
 class GraphqlWsTests: XCTestCase {
     var clientMessenger: TestMessenger!

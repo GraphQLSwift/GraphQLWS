@@ -95,7 +95,7 @@ public class Server<
                     return
                 }
                 try await self.onConnectionTerminate(connectionTerminateRequest, messenger)
-            case .unknown:
+            default:
                 try await self.error(.invalidType())
             }
         }
@@ -229,7 +229,7 @@ public class Server<
     private func sendConnectionAck(_ payload: [String: Map]? = nil) async throws {
         guard let messenger = messenger else { return }
         try await messenger.send(
-            ConnectionAckResponse(payload).toJSON(encoder)
+            ConnectionAckResponse(payload: payload).toJSON(encoder)
         )
     }
 
@@ -237,7 +237,7 @@ public class Server<
     private func sendConnectionError(_ payload: [String: Map]? = nil) async throws {
         guard let messenger = messenger else { return }
         try await messenger.send(
-            ConnectionErrorResponse(payload).toJSON(encoder)
+            ConnectionErrorResponse(payload: payload).toJSON(encoder)
         )
     }
 
@@ -245,7 +245,7 @@ public class Server<
     private func sendConnectionKeepAlive(_ payload: [String: Map]? = nil) async throws {
         guard let messenger = messenger else { return }
         try await messenger.send(
-            ConnectionKeepAliveResponse(payload).toJSON(encoder)
+            ConnectionKeepAliveResponse(payload: payload).toJSON(encoder)
         )
     }
 
@@ -254,7 +254,7 @@ public class Server<
         guard let messenger = messenger else { return }
         try await messenger.send(
             DataResponse(
-                payload,
+                payload: payload,
                 id: id
             ).toJSON(encoder)
         )

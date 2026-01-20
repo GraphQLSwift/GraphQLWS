@@ -14,7 +14,7 @@ Features:
 To use this package, include it in your `Package.swift` dependencies:
 
 ```swift
-.package(url: "git@gitlab.com:PassiveLogic/platform/GraphQLWS.git", from: "<version>"),
+.package(url: "https://github.com/GraphQLSwift/GraphQLWS.git", from: "<version>"),
 ```
 
 Then create a class to implement the `Messenger` protocol. Here's an example using
@@ -32,7 +32,7 @@ class WebSocketMessenger: Messenger {
     init(websocket: WebSocket) {
         self.websocket = websocket
         websocket.onText { _, message in
-            try await self.onReceive(message)
+            try? await self.onReceive(message)
         }
     }
 

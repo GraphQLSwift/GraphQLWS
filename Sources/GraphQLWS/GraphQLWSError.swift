@@ -89,7 +89,7 @@ struct GraphQLWSError: Error {
 
 /// Error codes for miscellaneous issues
 public enum ErrorCode: Int, CustomStringConvertible, Sendable {
-    // Miscellaneous
+    /// Miscellaneous
     case miscellaneous = 4400
 
     // Internal errors

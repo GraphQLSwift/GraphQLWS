@@ -1,9 +1,7 @@
 import Foundation
-
 import GraphQL
-import Testing
-
 import GraphQLWS
+import Testing
 
 @Suite
 struct GraphqlTransportWSTests {
@@ -24,11 +22,10 @@ struct GraphqlTransportWSTests {
                 )
             },
             onSubscribe: { graphQLRequest, _ in
-                let subscription = try await api.subscribe(
+                try await api.subscribe(
                     request: graphQLRequest.query,
                     context: context
                 ).get()
-                return subscription
             }
         )
         let (messageStream, messageContinuation) = AsyncThrowingStream<String, any Error>.makeStream()
@@ -68,7 +65,7 @@ struct GraphqlTransportWSTests {
         }
         #expect(
             messages ==
-            ["\(ErrorCode.notInitialized): Connection not initialized"]
+                ["\(ErrorCode.notInitialized): Connection not initialized"]
         )
     }
 
@@ -88,11 +85,10 @@ struct GraphqlTransportWSTests {
                 )
             },
             onSubscribe: { graphQLRequest, _ in
-                let subscription = try await api.subscribe(
+                try await api.subscribe(
                     request: graphQLRequest.query,
                     context: context
                 ).get()
-                return subscription
             }
         )
         let (messageStream, messageContinuation) = AsyncThrowingStream<String, any Error>.makeStream()
@@ -127,7 +123,7 @@ struct GraphqlTransportWSTests {
         }
         #expect(
             messages ==
-            ["\(ErrorCode.unauthorized): Unauthorized"]
+                ["\(ErrorCode.unauthorized): Unauthorized"]
         )
     }
 
@@ -147,11 +143,10 @@ struct GraphqlTransportWSTests {
                 )
             },
             onSubscribe: { graphQLRequest, _ in
-                let subscription = try await api.subscribe(
+                try await api.subscribe(
                     request: graphQLRequest.query,
                     context: context
                 ).get()
-                return subscription
             }
         )
         let (messageStream, messageContinuation) = AsyncThrowingStream<String, any Error>.makeStream()
@@ -206,7 +201,7 @@ struct GraphqlTransportWSTests {
         let id = UUID().description
         var dataIndex = 1
         let dataIndexMax = 3
-        
+
         let (subscribeReadyStream, subscribeReadyContinuation) = AsyncStream<Void>.makeStream()
         let server = Server<TokenInitPayload, Void, AsyncThrowingStream<GraphQLResult, Error>>(
             messenger: serverMessenger,

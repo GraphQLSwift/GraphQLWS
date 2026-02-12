@@ -2,10 +2,9 @@ import Foundation
 
 /// Protocol for an object that can send messages. This allows mocking in tests
 public protocol Messenger: Sendable {
-
     /// Send a message through this messenger
     /// - Parameter message: The message to send
-    func send<S: Sendable>(_ message: S) async throws -> Void where S: Collection, S.Element == Character
+    func send<S: Sendable & Collection>(_ message: S) async throws -> Void where S.Element == Character
 
     /// Close the messenger
     func close() async throws

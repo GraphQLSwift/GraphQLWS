@@ -1,35 +1,29 @@
 
 import Foundation
-
 @testable import GraphQLWS
 
 /// Messenger for simple testing that doesn't require starting up a websocket server.
-///
-/// Note that this only retains a weak reference to 'other', so the client should retain references
-/// or risk them being deinitialized early
-class TestMessenger: Messenger, @unchecked Sendable {
-    weak var other: TestMessenger?
-    var onReceive: (String) async throws -> Void = { _ in }
-    let queue: DispatchQueue = .init(label: "Test messenger")
+actor TestMessenger: Messenger {
+    /// An async stream of the messages sent through this messenger.
+    let stream: AsyncStream<String>
+    private var continuation: AsyncStream<String>.Continuation
 
-    init() {}
-
-    func send<S: Sendable>(_ message: S) async throws where S: Collection, S.Element == Character {
-        guard let other = other else {
-            return
-        }
-        try await other.onReceive(String(message))
+    init() {
+        let (stream, continuation) = AsyncStream<String>.makeStream()
+        self.stream = stream
+        self.continuation = continuation
     }
 
-    func onReceive(callback: @escaping (String) async throws -> Void) {
-        onReceive = callback
+    func send<S: Sendable & Collection>(_ message: S) async throws where S.Element == Character {
+        continuation.yield(String(message))
     }
 
     func error(_ message: String, code: Int) async throws {
-        try await send("\(code): \(message)")
+        continuation.yield("\(code): \(message)")
+        continuation.finish()
     }
 
     func close() {
-        // This is a testing no-op
+        continuation.finish()
     }
 }

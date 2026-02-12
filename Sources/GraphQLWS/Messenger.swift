@@ -1,15 +1,10 @@
 import Foundation
 
-/// Protocol for an object that can send and recieve messages. This allows mocking in tests
-public protocol Messenger: AnyObject {
-    // AnyObject compliance requires that the implementing object is a class and we can reference it weakly
-
+/// Protocol for an object that can send messages.
+public protocol Messenger: Sendable {
     /// Send a message through this messenger
     /// - Parameter message: The message to send
-    func send<S>(_ message: S) async throws -> Void where S: Collection, S.Element == Character
-
-    /// Set the callback that should be run when a message is recieved
-    func onReceive(callback: @escaping (String) async throws -> Void)
+    func send<S: Sendable & Collection>(_ message: S) async throws -> Void where S.Element == Character
 
     /// Close the messenger
     func close() async throws

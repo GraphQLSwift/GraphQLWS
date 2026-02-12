@@ -26,32 +26,21 @@ import GraphQLWS
 
 /// Messenger wrapper for WebSockets
 class WebSocketMessenger: Messenger {
-    private weak var websocket: WebSocket?
-    private var onReceive: (String) -> Void = { _ in }
-
+    let websocket: WebSocket
+    
     init(websocket: WebSocket) {
         self.websocket = websocket
-        websocket.onText { _, message in
-            try await self.onReceive(message)
-        }
     }
 
     func send<S>(_ message: S) async throws where S: Collection, S.Element == Character async throws {
-        guard let websocket = websocket else { return }
         try await websocket.send(message)
     }
 
-    func onReceive(callback: @escaping (String) async throws -> Void) {
-        self.onReceive = callback
-    }
-
     func error(_ message: String, code: Int) async throws {
-        guard let websocket = websocket else { return }
         try await websocket.send("\(code): \(message)")
     }
 
     func close() async throws {
-        guard let websocket = websocket else { return }
         try await websocket.close()
     }
 }
@@ -85,6 +74,12 @@ routes.webSocket(
                 )
             }
         )
+        let incoming = AsyncStream<String> { continuation in
+            websocket.onText { _, message in
+                continuation.yield(message)
+            }
+        }
+        try await server.listen(to: incoming)
     }
 )
 ```
@@ -125,12 +120,3 @@ This example would require `connection_init` message from the client to look lik
 ```
 
 If the `payload` field is not required on your server, you may make Server's generic declaration optional like `Server<Payload?>`
-
-## Memory Management
-
-Memory ownership among the Server, Client, and Messenger may seem a little backwards. This is because the Swift/Vapor WebSocket
-implementation persists WebSocket objects long after their callback and they are expected to retain strong memory references to the
-objects required for responses. In order to align cleanly and avoid memory cycles, Server and Client are injected strongly into Messenger
-callbacks, and only hold weak references to their Messenger. This means that Messenger objects (or their enclosing WebSocket) must
-be persisted to have the connected Server or Client objects function. That is, if a Server's Messenger falls out of scope and deinitializes,
-the Server will no longer respond to messages.

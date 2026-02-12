@@ -11,8 +11,7 @@ public class Server<
 >: @unchecked Sendable where
     SubscriptionSequenceType.Element == GraphQLResult
 {
-    // We keep this weak because we strongly inject this object into the messenger callback
-    weak var messenger: Messenger?
+    let messenger: Messenger
 
     let onInit: (InitPayload) async throws -> InitPayloadResult
     let onExecute: (GraphQLRequest, InitPayloadResult) async throws -> GraphQLResult
@@ -47,10 +46,12 @@ public class Server<
         self.onInit = onInit
         self.onExecute = onExecute
         self.onSubscribe = onSubscribe
-
-        messenger.onReceive { message in
-            guard let messenger = self.messenger else { return }
-
+    }
+    
+    /// Listen and react to the provided async sequence of client messages. This function will block until the stream is completed.
+    /// - Parameter incoming: The client message sequence that the server should react to.
+    public func listen<A: AsyncSequence & Sendable>(to incoming: A) async throws -> Void where A.Element == String {
+        for try await message in incoming {
             try await self.onMessage(message)
 
             // Detect and ignore error responses.
@@ -223,7 +224,6 @@ public class Server<
 
     /// Send a `connection_ack` response through the messenger
     private func sendConnectionAck(_ payload: [String: Map]? = nil) async throws {
-        guard let messenger = messenger else { return }
         try await messenger.send(
             ConnectionAckResponse(payload: payload).toJSON(encoder)
         )
@@ -231,7 +231,6 @@ public class Server<
 
     /// Send a `connection_error` response through the messenger
     private func sendConnectionError(_ payload: [String: Map]? = nil) async throws {
-        guard let messenger = messenger else { return }
         try await messenger.send(
             ConnectionErrorResponse(payload: payload).toJSON(encoder)
         )
@@ -239,7 +238,6 @@ public class Server<
 
     /// Send a `ka` response through the messenger
     private func sendConnectionKeepAlive(_ payload: [String: Map]? = nil) async throws {
-        guard let messenger = messenger else { return }
         try await messenger.send(
             ConnectionKeepAliveResponse(payload: payload).toJSON(encoder)
         )
@@ -247,7 +245,6 @@ public class Server<
 
     /// Send a `data` response through the messenger
     private func sendData(_ payload: GraphQLResult? = nil, id: String) async throws {
-        guard let messenger = messenger else { return }
         try await messenger.send(
             DataResponse(
                 payload: payload,
@@ -258,7 +255,6 @@ public class Server<
 
     /// Send a `complete` response through the messenger
     private func sendComplete(id: String) async throws {
-        guard let messenger = messenger else { return }
         try await messenger.send(
             CompleteResponse(
                 id: id
@@ -269,7 +265,6 @@ public class Server<
 
     /// Send an `error` response through the messenger
     private func sendError(_ errors: [Error], id: String) async throws {
-        guard let messenger = messenger else { return }
         try await messenger.send(
             ErrorResponse(
                 errors,
@@ -291,7 +286,6 @@ public class Server<
 
     /// Send an error through the messenger and close the connection
     private func error(_ error: GraphQLWSError) async throws {
-        guard let messenger = messenger else { return }
         try await messenger.error(error.message, code: error.code.rawValue)
     }
 }

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Protocol for an object that can send messages. This allows mocking in tests
+/// Protocol for an object that can send messages.
 public protocol Messenger: Sendable {
     /// Send a message through this messenger
     /// - Parameter message: The message to send

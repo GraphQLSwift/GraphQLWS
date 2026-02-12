@@ -3,7 +3,6 @@ import GraphQL
 
 /// Client is an open-ended implementation of the client side of the protocol. It parses and adds callbacks for each type of server respose.
 public actor Client<InitPayload: Equatable & Codable> {
-    /// We keep this weak because we strongly inject this object into the messenger callback
     let messenger: Messenger
 
     let onConnectionError: (ConnectionErrorResponse, Client) async throws -> Void

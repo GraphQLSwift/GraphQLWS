@@ -127,7 +127,7 @@ public actor Server<
         // TODO: Should we send the `ka` message?
     }
 
-    private func onStart(_ startRequest: StartRequest, _ messenger: Messenger) async throws {
+    private func onStart(_ startRequest: StartRequest, _: Messenger) async throws {
         guard initialized, let initResult else {
             try await error(.notInitialized())
             return
@@ -172,7 +172,6 @@ public actor Server<
             } catch {
                 try await sendError(error, id: id)
             }
-            try await messenger.close()
         }
     }
 

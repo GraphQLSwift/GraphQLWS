@@ -2,29 +2,50 @@ import Foundation
 import GraphQL
 
 /// Client is an open-ended implementation of the client side of the protocol. It parses and adds callbacks for each type of server respose.
-public class Client<InitPayload: Equatable & Codable>: @unchecked Sendable {
+public actor Client<InitPayload: Equatable & Codable> {
     // We keep this weak because we strongly inject this object into the messenger callback
     let messenger: Messenger
 
-    var onConnectionError: (ConnectionErrorResponse, Client) async throws -> Void = { _, _ in }
-    var onConnectionAck: (ConnectionAckResponse, Client) async throws -> Void = { _, _ in }
-    var onConnectionKeepAlive: (ConnectionKeepAliveResponse, Client) async throws -> Void = { _, _ in }
-    var onData: (DataResponse, Client) async throws -> Void = { _, _ in }
-    var onError: (ErrorResponse, Client) async throws -> Void = { _, _ in }
-    var onComplete: (CompleteResponse, Client) async throws -> Void = { _, _ in }
-    var onMessage: (String, Client) async throws -> Void = { _, _ in }
+    let onConnectionError: (ConnectionErrorResponse, Client) async throws -> Void
+    let onConnectionAck: (ConnectionAckResponse, Client) async throws -> Void
+    let onConnectionKeepAlive: (ConnectionKeepAliveResponse, Client) async throws -> Void
+    let onData: (DataResponse, Client) async throws -> Void
+    let onError: (ErrorResponse, Client) async throws -> Void
+    let onComplete: (CompleteResponse, Client) async throws -> Void
+    let onMessage: (String, Client) async throws -> Void
 
     let encoder = GraphQLJSONEncoder()
     let decoder = JSONDecoder()
 
     /// Create a new client.
-    ///
+    /// 
     /// - Parameters:
     ///   - messenger: The messenger to bind the client to.
+    ///   - onConnectionError: The callback run on receipt of a `connection_error` message
+    ///   - onConnectionAck: The callback run on receipt of a `connection_ack` message
+    ///   - onConnectionKeepAlive: The callback run on receipt of a `connection_ka` message
+    ///   - onData: The callback run on receipt of a `data` message
+    ///   - onError: The callback run on receipt of an `error` message
+    ///   - onComplete: The callback run on receipt of a `complete` message
+    ///   - onMessage: The callback run on receipt of any message
     public init(
-        messenger: Messenger
+        messenger: Messenger,
+        onConnectionError: @escaping (ConnectionErrorResponse, Client) async throws -> Void = { _, _ in },
+        onConnectionAck: @escaping (ConnectionAckResponse, Client) async throws -> Void = { _, _ in },
+        onConnectionKeepAlive: @escaping (ConnectionKeepAliveResponse, Client) async throws -> Void = { _, _ in },
+        onData: @escaping (DataResponse, Client) async throws -> Void = { _, _ in },
+        onError: @escaping (ErrorResponse, Client) async throws -> Void = { _, _ in },
+        onComplete: @escaping (CompleteResponse, Client) async throws -> Void = { _, _ in },
+        onMessage: @escaping (String, Client) async throws -> Void = { _, _ in }
     ) {
         self.messenger = messenger
+        self.onConnectionError = onConnectionError
+        self.onConnectionAck = onConnectionAck
+        self.onConnectionKeepAlive = onConnectionKeepAlive
+        self.onData = onData
+        self.onError = onError
+        self.onComplete = onComplete
+        self.onMessage = onMessage
     }
     
     /// Listen and react to the provided async sequence of server messages. This function will block until the stream is completed.
@@ -93,48 +114,6 @@ public class Client<InitPayload: Equatable & Codable>: @unchecked Sendable {
                 try await self.error(.invalidType())
             }
         }
-    }
-
-    /// Define the callback run on receipt of a `connection_error` message
-    /// - Parameter callback: The callback to assign
-    public func onConnectionError(_ callback: @escaping (ConnectionErrorResponse, Client) async throws -> Void) {
-        onConnectionError = callback
-    }
-
-    /// Define the callback run on receipt of a `connection_ack` message
-    /// - Parameter callback: The callback to assign
-    public func onConnectionAck(_ callback: @escaping (ConnectionAckResponse, Client) async throws -> Void) {
-        onConnectionAck = callback
-    }
-
-    /// Define the callback run on receipt of a `connection_ka` message
-    /// - Parameter callback: The callback to assign
-    public func onConnectionKeepAlive(_ callback: @escaping (ConnectionKeepAliveResponse, Client) async throws -> Void) {
-        onConnectionKeepAlive = callback
-    }
-
-    /// Define the callback run on receipt of a `data` message
-    /// - Parameter callback: The callback to assign
-    public func onData(_ callback: @escaping (DataResponse, Client) async throws -> Void) {
-        onData = callback
-    }
-
-    /// Define the callback run on receipt of an `error` message
-    /// - Parameter callback: The callback to assign
-    public func onError(_ callback: @escaping (ErrorResponse, Client) async throws -> Void) {
-        onError = callback
-    }
-
-    /// Define the callback run on receipt of any message
-    /// - Parameter callback: The callback to assign
-    public func onComplete(_ callback: @escaping (CompleteResponse, Client) async throws -> Void) {
-        onComplete = callback
-    }
-
-    /// Define the callback run on receipt of a `complete` message
-    /// - Parameter callback: The callback to assign
-    public func onMessage(_ callback: @escaping (String, Client) async throws -> Void) {
-        onMessage = callback
     }
 
     /// Send a `connection_init` request through the messenger

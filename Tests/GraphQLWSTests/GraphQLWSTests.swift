@@ -29,24 +29,23 @@ struct GraphqlTransportWSTests {
             }
         )
         let (messageStream, messageContinuation) = AsyncThrowingStream<String, any Error>.makeStream()
+        let serverMessageStream = serverMessenger.stream.map { message in
+            messageContinuation.yield(message)
+            // Expect only one message
+            messageContinuation.finish()
+            return message
+        }
         let client = Client<TokenInitPayload>(
             messenger: clientMessenger,
             onError: { message, _ in
                 messageContinuation.finish(throwing: message.payload[0])
-            },
-            onMessage: { message, _ in
-                messageContinuation.yield(message)
-                // Expect only one message
-                messageContinuation.finish()
+                await clientMessenger.close()
             }
         )
-        let serverStream = serverMessenger.stream
         let clientStream = clientMessenger.stream
         Task {
             try await server.listen(to: clientStream)
-        }
-        Task {
-            try await client.listen(to: serverStream)
+            await serverMessenger.close()
         }
 
         try await client.sendStart(
@@ -59,6 +58,7 @@ struct GraphqlTransportWSTests {
             ),
             id: UUID().uuidString
         )
+        try await client.listen(to: serverMessageStream)
 
         let messages = try await messageStream.reduce(into: [String]()) { result, message in
             result.append(message)
@@ -92,24 +92,23 @@ struct GraphqlTransportWSTests {
             }
         )
         let (messageStream, messageContinuation) = AsyncThrowingStream<String, any Error>.makeStream()
+        let serverMessageStream = serverMessenger.stream.map { message in
+            messageContinuation.yield(message)
+            // Expect only one message
+            messageContinuation.finish()
+            return message
+        }
         let client = Client<TokenInitPayload>(
             messenger: clientMessenger,
             onError: { message, _ in
                 messageContinuation.finish(throwing: message.payload[0])
-            },
-            onMessage: { message, _ in
-                messageContinuation.yield(message)
-                // Expect only one message
-                messageContinuation.finish()
+                await clientMessenger.close()
             }
         )
-        let serverStream = serverMessenger.stream
         let clientStream = clientMessenger.stream
         Task {
             try await server.listen(to: clientStream)
-        }
-        Task {
-            try await client.listen(to: serverStream)
+            await serverMessenger.close()
         }
 
         try await client.sendConnectionInit(
@@ -117,6 +116,7 @@ struct GraphqlTransportWSTests {
                 authToken: ""
             )
         )
+        try await client.listen(to: serverMessageStream)
 
         let messages = try await messageStream.reduce(into: [String]()) { result, message in
             result.append(message)
@@ -150,6 +150,10 @@ struct GraphqlTransportWSTests {
             }
         )
         let (messageStream, messageContinuation) = AsyncThrowingStream<String, any Error>.makeStream()
+        let serverMessageStream = serverMessenger.stream.map { message in
+            messageContinuation.yield(message)
+            return message
+        }
         let client = Client<TokenInitPayload>(
             messenger: clientMessenger,
             onConnectionAck: { _, client in
@@ -166,24 +170,21 @@ struct GraphqlTransportWSTests {
             },
             onError: { message, _ in
                 messageContinuation.finish(throwing: message.payload[0])
+                await clientMessenger.close()
             },
             onComplete: { _, _ in
                 messageContinuation.finish()
-            },
-            onMessage: { message, _ in
-                messageContinuation.yield(message)
+                await clientMessenger.close()
             }
         )
-        let serverStream = serverMessenger.stream
         let clientStream = clientMessenger.stream
         Task {
             try await server.listen(to: clientStream)
-        }
-        Task {
-            try await client.listen(to: serverStream)
+            await serverMessenger.close()
         }
 
         try await client.sendConnectionInit(payload: TokenInitPayload(authToken: ""))
+        try await client.listen(to: serverMessageStream)
 
         let messages = try await messageStream.reduce(into: [String]()) { result, message in
             result.append(message)
@@ -222,6 +223,11 @@ struct GraphqlTransportWSTests {
             }
         )
         let (messageStream, messageContinuation) = AsyncThrowingStream<String, any Error>.makeStream()
+        // Used to extract the server messages
+        let serverMessageStream = serverMessenger.stream.map { message in
+            messageContinuation.yield(message)
+            return message
+        }
         let client = Client<TokenInitPayload>(
             messenger: clientMessenger,
             onConnectionAck: { _, client in
@@ -250,24 +256,21 @@ struct GraphqlTransportWSTests {
             },
             onError: { message, _ in
                 messageContinuation.finish(throwing: message.payload[0])
+                await clientMessenger.close()
             },
             onComplete: { _, _ in
                 messageContinuation.finish()
-            },
-            onMessage: { message, _ in
-                messageContinuation.yield(message)
+                await clientMessenger.close()
             }
         )
         let clientStream = clientMessenger.stream
-        let serverStream = serverMessenger.stream
         Task {
             try await server.listen(to: clientStream)
-        }
-        Task {
-            try await client.listen(to: serverStream)
+            await serverMessenger.close()
         }
 
         try await client.sendConnectionInit(payload: TokenInitPayload(authToken: ""))
+        try await client.listen(to: serverMessageStream)
 
         let messages = try await messageStream.reduce(into: [String]()) { result, message in
             result.append(message)

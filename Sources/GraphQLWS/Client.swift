@@ -12,7 +12,6 @@ public actor Client<InitPayload: Equatable & Codable> {
     let onData: (DataResponse, Client) async throws -> Void
     let onError: (ErrorResponse, Client) async throws -> Void
     let onComplete: (CompleteResponse, Client) async throws -> Void
-    let onMessage: (String, Client) async throws -> Void
 
     let encoder = GraphQLJSONEncoder()
     let decoder = JSONDecoder()
@@ -27,7 +26,6 @@ public actor Client<InitPayload: Equatable & Codable> {
     ///   - onData: The callback run on receipt of a `data` message
     ///   - onError: The callback run on receipt of an `error` message
     ///   - onComplete: The callback run on receipt of a `complete` message
-    ///   - onMessage: The callback run on receipt of any message
     public init(
         messenger: Messenger,
         onConnectionError: @escaping (ConnectionErrorResponse, Client) async throws -> Void = { _, _ in },
@@ -35,8 +33,7 @@ public actor Client<InitPayload: Equatable & Codable> {
         onConnectionKeepAlive: @escaping (ConnectionKeepAliveResponse, Client) async throws -> Void = { _, _ in },
         onData: @escaping (DataResponse, Client) async throws -> Void = { _, _ in },
         onError: @escaping (ErrorResponse, Client) async throws -> Void = { _, _ in },
-        onComplete: @escaping (CompleteResponse, Client) async throws -> Void = { _, _ in },
-        onMessage: @escaping (String, Client) async throws -> Void = { _, _ in }
+        onComplete: @escaping (CompleteResponse, Client) async throws -> Void = { _, _ in }
     ) {
         self.messenger = messenger
         self.onConnectionError = onConnectionError
@@ -45,15 +42,12 @@ public actor Client<InitPayload: Equatable & Codable> {
         self.onData = onData
         self.onError = onError
         self.onComplete = onComplete
-        self.onMessage = onMessage
     }
 
     /// Listen and react to the provided async sequence of server messages. This function will block until the stream is completed.
     /// - Parameter incoming: The server message sequence that the client should react to.
     public func listen<A: AsyncSequence & Sendable>(to incoming: A) async throws -> Void where A.Element == String {
         for try await message in incoming {
-            try await onMessage(message, self)
-
             // Detect and ignore error responses.
             if message.starts(with: "44") {
                 // TODO: Determine what to do with returned error messages

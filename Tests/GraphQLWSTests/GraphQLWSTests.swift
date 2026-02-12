@@ -8,9 +8,10 @@ import GraphQLWS
 class GraphqlWsTests: XCTestCase {
     var clientMessenger: TestMessenger!
     var serverMessenger: TestMessenger!
-    var server: Server<TokenInitPayload, AsyncThrowingStream<GraphQLResult, Error>>!
-    var context: TestContext!
     var subscribeReady: Bool! = false
+
+    let context = TestContext()
+    let api = TestAPI()
 
     override func setUp() {
         // Point the client and server at each other
@@ -18,32 +19,28 @@ class GraphqlWsTests: XCTestCase {
         serverMessenger = TestMessenger()
         clientMessenger.other = serverMessenger
         serverMessenger.other = clientMessenger
+    }
 
-        let api = TestAPI()
-        let context = TestContext()
-
-        server = .init(
+    /// Tests that trying to run methods before `connection_init` is not allowed
+    func testInitialize() async throws {
+        let server = Server<TokenInitPayload, Void, AsyncThrowingStream<GraphQLResult, Error>>(
             messenger: serverMessenger,
-            onExecute: { graphQLRequest in
-                try await api.execute(
+            onInit: { _ in },
+            onExecute: { graphQLRequest, _ in
+                try await self.api.execute(
                     request: graphQLRequest.query,
-                    context: context
+                    context: self.context
                 )
             },
-            onSubscribe: { graphQLRequest in
-                let subscription = try await api.subscribe(
+            onSubscribe: { graphQLRequest, _ in
+                let subscription = try await self.api.subscribe(
                     request: graphQLRequest.query,
-                    context: context
+                    context: self.context
                 ).get()
                 self.subscribeReady = true
                 return subscription
             }
         )
-        self.context = context
-    }
-
-    /// Tests that trying to run methods before `connection_init` is not allowed
-    func testInitialize() async throws {
         let client = Client<TokenInitPayload>(messenger: clientMessenger)
         let messageStream = AsyncThrowingStream<String, any Error> { continuation in
             client.onMessage { message, _ in
@@ -78,10 +75,26 @@ class GraphqlWsTests: XCTestCase {
 
     /// Tests that throwing in the authorization callback forces an unauthorized error
     func testAuthWithThrow() async throws {
-        server.auth { _ in
-            throw TestError.couldBeAnything
-        }
-
+        let server = Server<TokenInitPayload, Void, AsyncThrowingStream<GraphQLResult, Error>>(
+            messenger: serverMessenger,
+            onInit: { _ in
+                throw TestError.couldBeAnything
+            },
+            onExecute: { graphQLRequest, _ in
+                try await self.api.execute(
+                    request: graphQLRequest.query,
+                    context: self.context
+                )
+            },
+            onSubscribe: { graphQLRequest, _ in
+                let subscription = try await self.api.subscribe(
+                    request: graphQLRequest.query,
+                    context: self.context
+                ).get()
+                self.subscribeReady = true
+                return subscription
+            }
+        )
         let client = Client<TokenInitPayload>(messenger: clientMessenger)
         let messageStream = AsyncThrowingStream<String, any Error> { continuation in
             client.onMessage { message, _ in
@@ -111,6 +124,24 @@ class GraphqlWsTests: XCTestCase {
 
     /// Test single op message flow works as expected
     func testSingleOp() async throws {
+        let server = Server<TokenInitPayload, Void, AsyncThrowingStream<GraphQLResult, Error>>(
+            messenger: serverMessenger,
+            onInit: { _ in },
+            onExecute: { graphQLRequest, _ in
+                try await self.api.execute(
+                    request: graphQLRequest.query,
+                    context: self.context
+                )
+            },
+            onSubscribe: { graphQLRequest, _ in
+                let subscription = try await self.api.subscribe(
+                    request: graphQLRequest.query,
+                    context: self.context
+                ).get()
+                self.subscribeReady = true
+                return subscription
+            }
+        )
         let id = UUID().description
 
         let client = Client<TokenInitPayload>(messenger: clientMessenger)
@@ -152,6 +183,25 @@ class GraphqlWsTests: XCTestCase {
 
     /// Test streaming message flow works as expected
     func testStreaming() async throws {
+        let server = Server<TokenInitPayload, Void, AsyncThrowingStream<GraphQLResult, Error>>(
+            messenger: serverMessenger,
+            onInit: { _ in },
+            onExecute: { graphQLRequest, _ in
+                try await self.api.execute(
+                    request: graphQLRequest.query,
+                    context: self.context
+                )
+            },
+            onSubscribe: { graphQLRequest, _ in
+                let subscription = try await self.api.subscribe(
+                    request: graphQLRequest.query,
+                    context: self.context
+                ).get()
+                self.subscribeReady = true
+                return subscription
+            }
+        )
+
         let id = UUID().description
 
         var dataIndex = 1

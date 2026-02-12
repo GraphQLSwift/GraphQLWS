@@ -6,6 +6,7 @@ import GraphQL
 /// By default, there are no authorization checks
 public class Server<
     InitPayload: Equatable & Codable & Sendable,
+    InitPayloadResult: Sendable,
     SubscriptionSequenceType: AsyncSequence & Sendable
 >: @unchecked Sendable where
     SubscriptionSequenceType.Element == GraphQLResult
@@ -13,9 +14,9 @@ public class Server<
     // We keep this weak because we strongly inject this object into the messenger callback
     weak var messenger: Messenger?
 
-    let onExecute: (GraphQLRequest) async throws -> GraphQLResult
-    let onSubscribe: (GraphQLRequest) async throws -> SubscriptionSequenceType
-    var auth: (InitPayload) async throws -> Void
+    let onInit: (InitPayload) async throws -> InitPayloadResult
+    let onExecute: (GraphQLRequest, InitPayloadResult) async throws -> GraphQLResult
+    let onSubscribe: (GraphQLRequest, InitPayloadResult) async throws -> SubscriptionSequenceType
 
     var onExit: () async throws -> Void = {}
     var onMessage: (String) async throws -> Void = { _ in }
@@ -23,6 +24,7 @@ public class Server<
     var onOperationError: (String, [Error]) async throws -> Void = { _, _ in }
 
     var initialized = false
+    var initResult: InitPayloadResult?
 
     let decoder = JSONDecoder()
     let encoder = GraphQLJSONEncoder()
@@ -37,13 +39,14 @@ public class Server<
     ///   - onSubscribe: Callback run during `start` resolution for streaming queries. Typically this is `API.subscribe`.
     public init(
         messenger: Messenger,
-        onExecute: @escaping (GraphQLRequest) async throws -> GraphQLResult,
-        onSubscribe: @escaping (GraphQLRequest) async throws -> SubscriptionSequenceType
+        onInit: @escaping (InitPayload) async throws -> InitPayloadResult,
+        onExecute: @escaping (GraphQLRequest, InitPayloadResult) async throws -> GraphQLResult,
+        onSubscribe: @escaping (GraphQLRequest, InitPayloadResult) async throws -> SubscriptionSequenceType
     ) {
         self.messenger = messenger
+        self.onInit = onInit
         self.onExecute = onExecute
         self.onSubscribe = onSubscribe
-        auth = { _ in }
 
         messenger.onReceive { message in
             guard let messenger = self.messenger else { return }
@@ -105,13 +108,6 @@ public class Server<
         subscriptionTasks.values.forEach { $0.cancel() }
     }
 
-    /// Define a custom callback run during `connection_init` resolution that allows authorization using the `payload`.
-    /// Throw from this closure to indicate that authorization has failed.
-    /// - Parameter callback: The callback to assign
-    public func auth(_ callback: @escaping (InitPayload) async throws -> Void) {
-        auth = callback
-    }
-
     /// Define the callback run when the communication is shut down, either by the client or server
     /// - Parameter callback: The callback to assign
     public func onExit(_ callback: @escaping () -> Void) {
@@ -143,7 +139,7 @@ public class Server<
         }
 
         do {
-            try await auth(connectionInitRequest.payload)
+            initResult = try await onInit(connectionInitRequest.payload)
         } catch {
             try await self.error(.unauthorized())
             return
@@ -154,7 +150,7 @@ public class Server<
     }
 
     private func onStart(_ startRequest: StartRequest, _ messenger: Messenger) async throws {
-        guard initialized else {
+        guard initialized, let initResult else {
             try await error(.notInitialized())
             return
         }
@@ -177,7 +173,7 @@ public class Server<
         if isStreaming {
             subscriptionTasks[id] = Task {
                 do {
-                    let stream = try await onSubscribe(graphQLRequest)
+                    let stream = try await onSubscribe(graphQLRequest, initResult)
                     for try await event in stream {
                         try Task.checkCancellation()
                         try await self.sendData(event, id: id)
@@ -192,7 +188,7 @@ public class Server<
             }
         } else {
             do {
-                let result = try await onExecute(graphQLRequest)
+                let result = try await onExecute(graphQLRequest, initResult)
                 try await sendData(result, id: id)
                 try await sendComplete(id: id)
             } catch {

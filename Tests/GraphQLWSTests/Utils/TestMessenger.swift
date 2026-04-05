@@ -1,5 +1,5 @@
-
 import Foundation
+
 @testable import GraphQLWS
 
 /// Messenger for simple testing that doesn't require starting up a websocket server.

@@ -27,9 +27,14 @@ public actor Client<InitPayload: Equatable & Codable> {
     ///   - onComplete: The callback run on receipt of a `complete` message
     public init(
         messenger: Messenger,
-        onConnectionError: @escaping (ConnectionErrorResponse, Client) async throws -> Void = { _, _ in },
-        onConnectionAck: @escaping (ConnectionAckResponse, Client) async throws -> Void = { _, _ in },
-        onConnectionKeepAlive: @escaping (ConnectionKeepAliveResponse, Client) async throws -> Void = { _, _ in },
+        onConnectionError: @escaping (ConnectionErrorResponse, Client) async throws -> Void = {
+            _,
+            _ in
+        },
+        onConnectionAck: @escaping (ConnectionAckResponse, Client) async throws -> Void = { _, _ in
+        },
+        onConnectionKeepAlive:
+            @escaping (ConnectionKeepAliveResponse, Client) async throws -> Void = { _, _ in },
         onData: @escaping (DataResponse, Client) async throws -> Void = { _, _ in },
         onError: @escaping (ErrorResponse, Client) async throws -> Void = { _, _ in },
         onComplete: @escaping (CompleteResponse, Client) async throws -> Void = { _, _ in }
@@ -45,7 +50,8 @@ public actor Client<InitPayload: Equatable & Codable> {
 
     /// Listen and react to the provided async sequence of server messages. This function will block until the stream is completed.
     /// - Parameter incoming: The server message sequence that the client should react to.
-    public func listen<A: AsyncSequence & Sendable>(to incoming: A) async throws -> Void where A.Element == String {
+    public func listen<A: AsyncSequence & Sendable>(to incoming: A) async throws
+    where A.Element == String {
         for try await message in incoming {
             // Detect and ignore error responses.
             if message.starts(with: "44") {
@@ -68,19 +74,34 @@ public actor Client<InitPayload: Equatable & Codable> {
 
             switch response.type {
             case .GQL_CONNECTION_ERROR:
-                guard let connectionErrorResponse = try? decoder.decode(ConnectionErrorResponse.self, from: json) else {
+                guard
+                    let connectionErrorResponse = try? decoder.decode(
+                        ConnectionErrorResponse.self,
+                        from: json
+                    )
+                else {
                     try await error(.invalidResponseFormat(messageType: .GQL_CONNECTION_ERROR))
                     return
                 }
                 try await onConnectionError(connectionErrorResponse, self)
             case .GQL_CONNECTION_ACK:
-                guard let connectionAckResponse = try? decoder.decode(ConnectionAckResponse.self, from: json) else {
+                guard
+                    let connectionAckResponse = try? decoder.decode(
+                        ConnectionAckResponse.self,
+                        from: json
+                    )
+                else {
                     try await error(.invalidResponseFormat(messageType: .GQL_CONNECTION_ERROR))
                     return
                 }
                 try await onConnectionAck(connectionAckResponse, self)
             case .GQL_CONNECTION_KEEP_ALIVE:
-                guard let connectionKeepAliveResponse = try? decoder.decode(ConnectionKeepAliveResponse.self, from: json) else {
+                guard
+                    let connectionKeepAliveResponse = try? decoder.decode(
+                        ConnectionKeepAliveResponse.self,
+                        from: json
+                    )
+                else {
                     try await error(.invalidResponseFormat(messageType: .GQL_CONNECTION_KEEP_ALIVE))
                     return
                 }
@@ -98,7 +119,8 @@ public actor Client<InitPayload: Equatable & Codable> {
                 }
                 try await onError(errorResponse, self)
             case .GQL_COMPLETE:
-                guard let completeResponse = try? decoder.decode(CompleteResponse.self, from: json) else {
+                guard let completeResponse = try? decoder.decode(CompleteResponse.self, from: json)
+                else {
                     try await error(.invalidResponseFormat(messageType: .GQL_COMPLETE))
                     return
                 }

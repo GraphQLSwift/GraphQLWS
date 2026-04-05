@@ -1,6 +1,6 @@
 import Foundation
-import Graphiti
 import GraphQL
+import Graphiti
 
 struct TestAPI: API {
     let resolver = TestResolver()
@@ -29,7 +29,10 @@ struct TestResolver {
         context.hello()
     }
 
-    func subscribeHello(context: TestContext, arguments _: NoArguments) -> AsyncThrowingStream<String, Error> {
+    func subscribeHello(
+        context: TestContext,
+        arguments _: NoArguments
+    ) -> AsyncThrowingStream<String, Error> {
         context.publisher.subscribe()
     }
 }

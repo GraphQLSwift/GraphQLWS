@@ -9,7 +9,7 @@ let package = Package(
         .library(
             name: "GraphQLWS",
             targets: ["GraphQLWS"]
-        ),
+        )
     ],
     dependencies: [
         .package(url: "https://github.com/GraphQLSwift/Graphiti.git", from: "3.0.0"),

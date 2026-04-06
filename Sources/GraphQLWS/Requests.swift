@@ -18,10 +18,13 @@ public struct ConnectionInitRequest<InitPayload: Codable & Equatable>: Equatable
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: Self.CodingKeys.self)
         if try container.decode(RequestMessageType.self, forKey: .type) != .GQL_CONNECTION_INIT {
-            throw DecodingError.dataCorrupted(.init(
-                codingPath: decoder.codingPath,
-                debugDescription: "type must be `\(RequestMessageType.GQL_CONNECTION_INIT.type)`"
-            ))
+            throw DecodingError.dataCorrupted(
+                .init(
+                    codingPath: decoder.codingPath,
+                    debugDescription:
+                        "type must be `\(RequestMessageType.GQL_CONNECTION_INIT.type)`"
+                )
+            )
         }
         payload = try container.decode(InitPayload.self, forKey: .payload)
     }
@@ -41,10 +44,12 @@ public struct StartRequest: Equatable, JsonEncodable {
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: Self.CodingKeys.self)
         if try container.decode(RequestMessageType.self, forKey: .type) != .GQL_START {
-            throw DecodingError.dataCorrupted(.init(
-                codingPath: decoder.codingPath,
-                debugDescription: "type must be `\(RequestMessageType.GQL_START.type)`"
-            ))
+            throw DecodingError.dataCorrupted(
+                .init(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "type must be `\(RequestMessageType.GQL_START.type)`"
+                )
+            )
         }
         payload = try container.decode(GraphQLRequest.self, forKey: .payload)
         id = try container.decode(String.self, forKey: .id)
@@ -62,11 +67,14 @@ public struct StopRequest: Equatable, JsonEncodable {
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: Self.CodingKeys.self)
-        if try container.decode(RequestMessageType.self, forKey: .type) != .GQL_CONNECTION_TERMINATE {
-            throw DecodingError.dataCorrupted(.init(
-                codingPath: decoder.codingPath,
-                debugDescription: "type must be `\(RequestMessageType.GQL_STOP.type)`"
-            ))
+        if try container.decode(RequestMessageType.self, forKey: .type) != .GQL_CONNECTION_TERMINATE
+        {
+            throw DecodingError.dataCorrupted(
+                .init(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "type must be `\(RequestMessageType.GQL_STOP.type)`"
+                )
+            )
         }
         id = try container.decode(String.self, forKey: .id)
     }
@@ -80,11 +88,15 @@ public struct ConnectionTerminateRequest: Equatable, JsonEncodable {
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: Self.CodingKeys.self)
-        if try container.decode(RequestMessageType.self, forKey: .type) != .GQL_CONNECTION_TERMINATE {
-            throw DecodingError.dataCorrupted(.init(
-                codingPath: decoder.codingPath,
-                debugDescription: "type must be `\(RequestMessageType.GQL_CONNECTION_TERMINATE.type)`"
-            ))
+        if try container.decode(RequestMessageType.self, forKey: .type) != .GQL_CONNECTION_TERMINATE
+        {
+            throw DecodingError.dataCorrupted(
+                .init(
+                    codingPath: decoder.codingPath,
+                    debugDescription:
+                        "type must be `\(RequestMessageType.GQL_CONNECTION_TERMINATE.type)`"
+                )
+            )
         }
     }
 }

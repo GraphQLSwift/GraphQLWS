@@ -28,7 +28,8 @@ struct GraphqlTransportWSTests {
                 ).get()
             }
         )
-        let (messageStream, messageContinuation) = AsyncThrowingStream<String, any Error>.makeStream()
+        let (messageStream, messageContinuation) = AsyncThrowingStream<String, any Error>
+            .makeStream()
         let serverMessageStream = serverMessenger.stream.map { message in
             messageContinuation.yield(message)
             // Expect only one message
@@ -51,10 +52,10 @@ struct GraphqlTransportWSTests {
         try await client.sendStart(
             payload: GraphQLRequest(
                 query: """
-                query {
-                    hello
-                }
-                """
+                    query {
+                        hello
+                    }
+                    """
             ),
             id: UUID().uuidString
         )
@@ -64,8 +65,7 @@ struct GraphqlTransportWSTests {
             result.append(message)
         }
         #expect(
-            messages ==
-                ["\(ErrorCode.notInitialized): Connection not initialized"]
+            messages == ["\(ErrorCode.notInitialized): Connection not initialized"]
         )
     }
 
@@ -91,7 +91,8 @@ struct GraphqlTransportWSTests {
                 ).get()
             }
         )
-        let (messageStream, messageContinuation) = AsyncThrowingStream<String, any Error>.makeStream()
+        let (messageStream, messageContinuation) = AsyncThrowingStream<String, any Error>
+            .makeStream()
         let serverMessageStream = serverMessenger.stream.map { message in
             messageContinuation.yield(message)
             // Expect only one message
@@ -122,8 +123,7 @@ struct GraphqlTransportWSTests {
             result.append(message)
         }
         #expect(
-            messages ==
-                ["\(ErrorCode.unauthorized): Unauthorized"]
+            messages == ["\(ErrorCode.unauthorized): Unauthorized"]
         )
     }
 
@@ -149,7 +149,8 @@ struct GraphqlTransportWSTests {
                 ).get()
             }
         )
-        let (messageStream, messageContinuation) = AsyncThrowingStream<String, any Error>.makeStream()
+        let (messageStream, messageContinuation) = AsyncThrowingStream<String, any Error>
+            .makeStream()
         let serverMessageStream = serverMessenger.stream.map { message in
             messageContinuation.yield(message)
             return message
@@ -160,10 +161,10 @@ struct GraphqlTransportWSTests {
                 try await client.sendStart(
                     payload: GraphQLRequest(
                         query: """
-                        query {
-                            hello
-                        }
-                        """
+                            query {
+                                hello
+                            }
+                            """
                     ),
                     id: id
                 )
@@ -190,7 +191,7 @@ struct GraphqlTransportWSTests {
             result.append(message)
         }
         #expect(
-            messages.count == 3, // 1 connection_ack, 1 data, 1 complete
+            messages.count == 3,  // 1 connection_ack, 1 data, 1 complete
             "Messages: \(messages.description)"
         )
     }
@@ -222,7 +223,8 @@ struct GraphqlTransportWSTests {
                 return subscription
             }
         )
-        let (messageStream, messageContinuation) = AsyncThrowingStream<String, any Error>.makeStream()
+        let (messageStream, messageContinuation) = AsyncThrowingStream<String, any Error>
+            .makeStream()
         // Used to extract the server messages
         let serverMessageStream = serverMessenger.stream.map { message in
             messageContinuation.yield(message)
@@ -234,10 +236,10 @@ struct GraphqlTransportWSTests {
                 try await client.sendStart(
                     payload: GraphQLRequest(
                         query: """
-                        subscription {
-                            hello
-                        }
-                        """
+                            subscription {
+                                hello
+                            }
+                            """
                     ),
                     id: id
                 )
@@ -276,7 +278,7 @@ struct GraphqlTransportWSTests {
             result.append(message)
         }
         #expect(
-            messages.count == 5, // 1 connection_ack, 3 next, 1 complete
+            messages.count == 5,  // 1 connection_ack, 3 next, 1 complete
             "Messages: \(messages.description)"
         )
     }

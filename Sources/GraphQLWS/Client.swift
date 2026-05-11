@@ -141,35 +141,43 @@ public actor Client<InitPayload: Equatable & Codable> {
     /// Send a `connection_init` request through the messenger
     public func sendConnectionInit(payload: InitPayload) async throws {
         try await messenger.send(
-            ConnectionInitRequest(
-                payload: payload
-            ).toJSON(encoder)
+            encoder.encode(
+                ConnectionInitRequest(
+                    payload: payload
+                )
+            )
         )
     }
 
     /// Send a `start` request through the messenger
     public func sendStart(payload: GraphQLRequest, id: String) async throws {
         try await messenger.send(
-            StartRequest(
-                payload: payload,
-                id: id
-            ).toJSON(encoder)
+            encoder.encode(
+                StartRequest(
+                    payload: payload,
+                    id: id
+                )
+            )
         )
     }
 
     /// Send a `stop` request through the messenger
     public func sendStop(id: String) async throws {
         try await messenger.send(
-            StopRequest(
-                id: id
-            ).toJSON(encoder)
+            encoder.encode(
+                StopRequest(
+                    id: id
+                )
+            )
         )
     }
 
     /// Send a `connection_terminate` request through the messenger
     public func sendConnectionTerminate() async throws {
         try await messenger.send(
-            ConnectionTerminateRequest().toJSON(encoder)
+            encoder.encode(
+                ConnectionTerminateRequest()
+            )
         )
     }
 

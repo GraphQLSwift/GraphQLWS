@@ -2,12 +2,12 @@ import Foundation
 import GraphQL
 
 /// A general response. This object's type is used to triage to other, more specific response objects.
-public struct Response: Equatable, JsonEncodable {
+public struct Response: Equatable, Codable {
     public let type: ResponseMessageType
 }
 
 /// A websocket `connection_ack` response from the server to the client
-public struct ConnectionAckResponse: Equatable, JsonEncodable {
+public struct ConnectionAckResponse: Equatable, Codable {
     public let type: ResponseMessageType = .GQL_CONNECTION_ACK
     public let payload: [String: Map]?
 
@@ -31,7 +31,7 @@ public struct ConnectionAckResponse: Equatable, JsonEncodable {
 }
 
 /// A websocket `connection_error` response from the server to the client
-public struct ConnectionErrorResponse: Equatable, JsonEncodable {
+public struct ConnectionErrorResponse: Equatable, Codable {
     public let type: ResponseMessageType = .GQL_CONNECTION_ERROR
     public let payload: [String: Map]?
 
@@ -55,7 +55,7 @@ public struct ConnectionErrorResponse: Equatable, JsonEncodable {
 }
 
 /// A websocket `ka` response from the server to the client
-public struct ConnectionKeepAliveResponse: Equatable, JsonEncodable {
+public struct ConnectionKeepAliveResponse: Equatable, Codable {
     public let type: ResponseMessageType = .GQL_CONNECTION_KEEP_ALIVE
     public let payload: [String: Map]?
 
@@ -81,7 +81,7 @@ public struct ConnectionKeepAliveResponse: Equatable, JsonEncodable {
 }
 
 /// A websocket `data` response from the server to the client
-public struct DataResponse: Equatable, JsonEncodable {
+public struct DataResponse: Equatable, Codable {
     public let type: ResponseMessageType = .GQL_DATA
     public let payload: GraphQLResult?
     public let id: String
@@ -107,7 +107,7 @@ public struct DataResponse: Equatable, JsonEncodable {
 }
 
 /// A websocket `complete` response from the server to the client
-public struct CompleteResponse: Equatable, JsonEncodable {
+public struct CompleteResponse: Equatable, Codable {
     public let type: ResponseMessageType = .GQL_COMPLETE
     public let id: String
 
@@ -130,7 +130,7 @@ public struct CompleteResponse: Equatable, JsonEncodable {
 }
 
 /// A websocket `error` response from the server to the client
-public struct ErrorResponse: Equatable, JsonEncodable {
+public struct ErrorResponse: Equatable, Codable {
     public let type: ResponseMessageType = .GQL_ERROR
     public let payload: [GraphQLError]
     public let id: String
@@ -203,7 +203,7 @@ public struct ResponseMessageType: Equatable, Codable, Sendable {
 
 /// A websocket `error` response from the server to the client that indicates an issue with encoding
 /// a response JSON
-struct EncodingErrorResponse: Equatable, Codable, JsonEncodable {
+struct EncodingErrorResponse: Equatable, Codable {
     let type: ResponseMessageType
     let payload: [String: String]
 

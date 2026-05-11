@@ -226,40 +226,44 @@ where
     /// Send a `connection_ack` response through the messenger
     private func sendConnectionAck(_ payload: [String: Map]? = nil) async throws {
         try await messenger.send(
-            ConnectionAckResponse(payload: payload).toJSON(encoder)
+            encoder.encode(ConnectionAckResponse(payload: payload))
         )
     }
 
     /// Send a `connection_error` response through the messenger
     private func sendConnectionError(_ payload: [String: Map]? = nil) async throws {
         try await messenger.send(
-            ConnectionErrorResponse(payload: payload).toJSON(encoder)
+            encoder.encode(ConnectionErrorResponse(payload: payload))
         )
     }
 
     /// Send a `ka` response through the messenger
     private func sendConnectionKeepAlive(_ payload: [String: Map]? = nil) async throws {
         try await messenger.send(
-            ConnectionKeepAliveResponse(payload: payload).toJSON(encoder)
+            encoder.encode(ConnectionKeepAliveResponse(payload: payload))
         )
     }
 
     /// Send a `data` response through the messenger
     private func sendData(_ payload: GraphQLResult? = nil, id: String) async throws {
         try await messenger.send(
-            DataResponse(
-                payload: payload,
-                id: id
-            ).toJSON(encoder)
+            encoder.encode(
+                DataResponse(
+                    payload: payload,
+                    id: id
+                )
+            )
         )
     }
 
     /// Send a `complete` response through the messenger
     private func sendComplete(id: String) async throws {
         try await messenger.send(
-            CompleteResponse(
-                id: id
-            ).toJSON(encoder)
+            encoder.encode(
+                CompleteResponse(
+                    id: id
+                )
+            )
         )
         try await onOperationComplete(id)
     }
@@ -267,10 +271,12 @@ where
     /// Send an `error` response through the messenger
     private func sendError(_ errors: [Error], id: String) async throws {
         try await messenger.send(
-            ErrorResponse(
-                errors,
-                id: id
-            ).toJSON(encoder)
+            encoder.encode(
+                ErrorResponse(
+                    errors,
+                    id: id
+                )
+            )
         )
         try await onOperationError(id, errors)
     }

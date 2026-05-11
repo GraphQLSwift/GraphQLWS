@@ -56,66 +56,74 @@ where
     /// Listen and react to the provided async sequence of client messages. This function will block until the stream is completed.
     /// - Parameter incoming: The client message sequence that the server should react to.
     public func listen<A: AsyncSequence & Sendable>(to incoming: A) async throws
-    where A.Element == String {
+    where A.Element == Data {
         for try await message in incoming {
-            // Detect and ignore error responses.
-            if message.starts(with: "44") {
-                // TODO: Determine what to do with returned error messages
-                return
-            }
+            try await respond(to: message)
+        }
+    }
 
-            guard let json = message.data(using: .utf8) else {
+    /// Listen and react to the provided async sequence of client messages. This function will block until the stream is completed.
+    /// - Parameter incoming: The client message sequence that the server should react to.
+    @available(*, deprecated, message: "Use `Data` sequence instead.")
+    public func listen<A: AsyncSequence & Sendable>(to incoming: A) async throws
+    where A.Element == String {
+        for try await stringMessage in incoming {
+            guard let message = stringMessage.data(using: .utf8) else {
                 try await error(.invalidEncoding())
                 return
             }
 
-            let request: Request
-            do {
-                request = try decoder.decode(Request.self, from: json)
-            } catch {
-                try await self.error(.noType())
+            try await respond(to: message)
+        }
+    }
+
+    private func respond(to message: Data) async throws {
+        let request: Request
+        do {
+            request = try decoder.decode(Request.self, from: message)
+        } catch {
+            try await self.error(.noType())
+            return
+        }
+
+        // handle incoming message
+        switch request.type {
+        case .GQL_CONNECTION_INIT:
+            guard
+                let connectionInitRequest = try? decoder.decode(
+                    ConnectionInitRequest<InitPayload>.self,
+                    from: message
+                )
+            else {
+                try await error(.invalidRequestFormat(messageType: .GQL_CONNECTION_INIT))
                 return
             }
-
-            // handle incoming message
-            switch request.type {
-            case .GQL_CONNECTION_INIT:
-                guard
-                    let connectionInitRequest = try? decoder.decode(
-                        ConnectionInitRequest<InitPayload>.self,
-                        from: json
-                    )
-                else {
-                    try await error(.invalidRequestFormat(messageType: .GQL_CONNECTION_INIT))
-                    return
-                }
-                try await onConnectionInit(connectionInitRequest, messenger)
-            case .GQL_START:
-                guard let startRequest = try? decoder.decode(StartRequest.self, from: json) else {
-                    try await error(.invalidRequestFormat(messageType: .GQL_START))
-                    return
-                }
-                try await onStart(startRequest, messenger)
-            case .GQL_STOP:
-                guard let stopRequest = try? decoder.decode(StopRequest.self, from: json) else {
-                    try await error(.invalidRequestFormat(messageType: .GQL_STOP))
-                    return
-                }
-                try await onStop(stopRequest)
-            case .GQL_CONNECTION_TERMINATE:
-                guard
-                    let connectionTerminateRequest = try? decoder.decode(
-                        ConnectionTerminateRequest.self,
-                        from: json
-                    )
-                else {
-                    try await error(.invalidRequestFormat(messageType: .GQL_CONNECTION_TERMINATE))
-                    return
-                }
-                try await onConnectionTerminate(connectionTerminateRequest, messenger)
-            default:
-                try await error(.invalidType())
+            try await onConnectionInit(connectionInitRequest, messenger)
+        case .GQL_START:
+            guard let startRequest = try? decoder.decode(StartRequest.self, from: message) else {
+                try await error(.invalidRequestFormat(messageType: .GQL_START))
+                return
             }
+            try await onStart(startRequest, messenger)
+        case .GQL_STOP:
+            guard let stopRequest = try? decoder.decode(StopRequest.self, from: message) else {
+                try await error(.invalidRequestFormat(messageType: .GQL_STOP))
+                return
+            }
+            try await onStop(stopRequest)
+        case .GQL_CONNECTION_TERMINATE:
+            guard
+                let connectionTerminateRequest = try? decoder.decode(
+                    ConnectionTerminateRequest.self,
+                    from: message
+                )
+            else {
+                try await error(.invalidRequestFormat(messageType: .GQL_CONNECTION_TERMINATE))
+                return
+            }
+            try await onConnectionTerminate(connectionTerminateRequest, messenger)
+        default:
+            try await error(.invalidType())
         }
     }
 

@@ -14,10 +14,8 @@ actor TestMessenger: Messenger {
         self.continuation = continuation
     }
 
-    func send<S: Sendable & Collection>(_ message: S) async throws where S.Element == Character {
-        if let data = String(message).data(using: .utf8) {
-            continuation.yield(data)
-        }
+    func send(_ message: Data) async throws {
+        continuation.yield(message)
     }
 
     func error(_ message: String, code: Int) async throws {

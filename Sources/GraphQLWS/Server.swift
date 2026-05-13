@@ -52,6 +52,10 @@ where
         self.onOperationComplete = onOperationComplete
         self.onOperationError = onOperationError
     }
+    
+    deinit {
+        subscriptionTasks.values.forEach { $0.cancel() }
+    }
 
     /// Listen and react to the provided async sequence of client messages. This function will block until the stream is completed.
     /// - Parameter incoming: The client message sequence that the server should react to.
@@ -125,10 +129,6 @@ where
         default:
             try await error(.invalidType())
         }
-    }
-
-    deinit {
-        subscriptionTasks.values.forEach { $0.cancel() }
     }
 
     private func onConnectionInit(

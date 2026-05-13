@@ -52,7 +52,7 @@ struct GraphqlTransportWSTests {
         #expect(
             error
                 == TestMessengerError(
-                    code: ErrorCode.notInitialized.rawValue,
+                    code: 4431,
                     message: "Connection not initialized"
                 )
         )
@@ -99,7 +99,7 @@ struct GraphqlTransportWSTests {
         #expect(
             error
                 == TestMessengerError(
-                    code: ErrorCode.unauthorized.rawValue,
+                    code: 4430,
                     message: "Unauthorized"
                 )
         )

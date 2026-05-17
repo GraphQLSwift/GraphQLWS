@@ -57,20 +57,6 @@ public actor Client<InitPayload: Equatable & Codable> {
         }
     }
 
-    /// Listen and react to the provided async sequence of server messages. This function will block until the stream is completed.
-    /// - Parameter incoming: The server message sequence that the client should react to.
-    @available(*, deprecated, message: "Use `Data` sequence instead.")
-    public func listen<A: AsyncSequence & Sendable>(to incoming: A) async throws
-    where A.Element == String {
-        for try await stringMessage in incoming {
-            guard let message = stringMessage.data(using: .utf8) else {
-                try await self.error(.invalidEncoding())
-                return
-            }
-            try await respond(to: message)
-        }
-    }
-
     private func respond(to message: Data) async throws {
         let response: Response
         do {

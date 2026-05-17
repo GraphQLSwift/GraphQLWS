@@ -2,12 +2,12 @@ import Foundation
 import GraphQL
 
 /// A general request. This object's type is used to triage to other, more specific request objects.
-public struct Request: Equatable, JsonEncodable {
+public struct Request: Equatable, Codable {
     public let type: RequestMessageType
 }
 
 /// A websocket `connection_init` request from the client to the server
-public struct ConnectionInitRequest<InitPayload: Codable & Equatable>: Equatable, JsonEncodable {
+public struct ConnectionInitRequest<InitPayload: Codable & Equatable>: Equatable, Codable {
     public let type: RequestMessageType = .GQL_CONNECTION_INIT
     public let payload: InitPayload
 
@@ -31,7 +31,7 @@ public struct ConnectionInitRequest<InitPayload: Codable & Equatable>: Equatable
 }
 
 /// A websocket `start` request from the client to the server
-public struct StartRequest: Equatable, JsonEncodable {
+public struct StartRequest: Equatable, Codable {
     public let type: RequestMessageType = .GQL_START
     public let payload: GraphQLRequest
     public let id: String
@@ -57,7 +57,7 @@ public struct StartRequest: Equatable, JsonEncodable {
 }
 
 /// A websocket `stop` request from the client to the server
-public struct StopRequest: Equatable, JsonEncodable {
+public struct StopRequest: Equatable, Codable {
     public let type: RequestMessageType = .GQL_STOP
     public let id: String
 
@@ -81,7 +81,7 @@ public struct StopRequest: Equatable, JsonEncodable {
 }
 
 /// A websocket `connection_terminate` request from the client to the server
-public struct ConnectionTerminateRequest: Equatable, JsonEncodable {
+public struct ConnectionTerminateRequest: Equatable, Codable {
     public let type: RequestMessageType = .GQL_CONNECTION_TERMINATE
 
     public init() {}

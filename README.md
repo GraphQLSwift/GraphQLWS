@@ -20,7 +20,7 @@ To use this package, include it in your `Package.swift` dependencies:
 .package(url: "https://github.com/GraphQLSwift/GraphQLWS", from: "<version>"),
 ```
 
-Then create a class to implement the `Messenger` protocol. Here's an example using
+Then create a concrete type that conforms to the `Messenger` protocol. Here's an example using
 [`WebSocketKit`](https://github.com/vapor/websocket-kit):
 
 ```swift
@@ -31,12 +31,12 @@ import GraphQLWS
 struct WebSocketMessenger: Messenger {
     let websocket: WebSocket
 
-    func send<S>(_ message: S) async throws where S: Collection, S.Element == Character async throws {
-        try await websocket.send(message)
+    func send(_ message: Data) async throws {
+        try await websocket.send(String(decoding: message, as: UTF8.self))
     }
 
     func error(_ message: String, code: Int) async throws {
-        try await websocket.send("\(code): \(message)")
+        try await websocket.close(code: code)
     }
 
     func close() async throws {
@@ -73,9 +73,9 @@ routes.webSocket(
                 )
             }
         )
-        let incoming = AsyncStream<String> { continuation in
+        let incoming = AsyncStream<Data> { continuation in
             websocket.onText { _, message in
-                continuation.yield(message)
+                continuation.yield(Data(message.utf8))
             }
         }
         try await server.listen(to: incoming)

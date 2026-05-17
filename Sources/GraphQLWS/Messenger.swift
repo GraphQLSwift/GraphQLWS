@@ -4,7 +4,7 @@ import Foundation
 public protocol Messenger: Sendable {
     /// Send a message through this messenger
     /// - Parameter message: The message to send
-    func send<S: Sendable & Collection>(_ message: S) async throws where S.Element == Character
+    func send(_ message: Data) async throws
 
     /// Close the messenger
     func close() async throws

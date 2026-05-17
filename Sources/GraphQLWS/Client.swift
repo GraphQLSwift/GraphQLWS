@@ -51,118 +51,133 @@ public actor Client<InitPayload: Equatable & Codable> {
     /// Listen and react to the provided async sequence of server messages. This function will block until the stream is completed.
     /// - Parameter incoming: The server message sequence that the client should react to.
     public func listen<A: AsyncSequence & Sendable>(to incoming: A) async throws
-    where A.Element == String {
+    where A.Element == Data {
         for try await message in incoming {
-            // Detect and ignore error responses.
-            if message.starts(with: "44") {
-                // TODO: Determine what to do with returned error messages
+            try await respond(to: message)
+        }
+    }
+
+    /// Listen and react to the provided async sequence of server messages. This function will block until the stream is completed.
+    /// - Parameter incoming: The server message sequence that the client should react to.
+    @available(*, deprecated, message: "Use `Data` sequence instead.")
+    public func listen<A: AsyncSequence & Sendable>(to incoming: A) async throws
+    where A.Element == String {
+        for try await stringMessage in incoming {
+            guard let message = stringMessage.data(using: .utf8) else {
+                try await self.error(.invalidEncoding())
                 return
             }
+            try await respond(to: message)
+        }
+    }
 
-            guard let json = message.data(using: .utf8) else {
-                try await error(.invalidEncoding())
+    private func respond(to message: Data) async throws {
+        let response: Response
+        do {
+            response = try decoder.decode(Response.self, from: message)
+        } catch {
+            try await self.error(.noType())
+            return
+        }
+
+        switch response.type {
+        case .GQL_CONNECTION_ERROR:
+            guard
+                let connectionErrorResponse = try? decoder.decode(
+                    ConnectionErrorResponse.self,
+                    from: message
+                )
+            else {
+                try await error(.invalidResponseFormat(messageType: .GQL_CONNECTION_ERROR))
                 return
             }
-
-            let response: Response
-            do {
-                response = try decoder.decode(Response.self, from: json)
-            } catch {
-                try await self.error(.noType())
+            try await onConnectionError(connectionErrorResponse, self)
+        case .GQL_CONNECTION_ACK:
+            guard
+                let connectionAckResponse = try? decoder.decode(
+                    ConnectionAckResponse.self,
+                    from: message
+                )
+            else {
+                try await error(.invalidResponseFormat(messageType: .GQL_CONNECTION_ERROR))
                 return
             }
-
-            switch response.type {
-            case .GQL_CONNECTION_ERROR:
-                guard
-                    let connectionErrorResponse = try? decoder.decode(
-                        ConnectionErrorResponse.self,
-                        from: json
-                    )
-                else {
-                    try await error(.invalidResponseFormat(messageType: .GQL_CONNECTION_ERROR))
-                    return
-                }
-                try await onConnectionError(connectionErrorResponse, self)
-            case .GQL_CONNECTION_ACK:
-                guard
-                    let connectionAckResponse = try? decoder.decode(
-                        ConnectionAckResponse.self,
-                        from: json
-                    )
-                else {
-                    try await error(.invalidResponseFormat(messageType: .GQL_CONNECTION_ERROR))
-                    return
-                }
-                try await onConnectionAck(connectionAckResponse, self)
-            case .GQL_CONNECTION_KEEP_ALIVE:
-                guard
-                    let connectionKeepAliveResponse = try? decoder.decode(
-                        ConnectionKeepAliveResponse.self,
-                        from: json
-                    )
-                else {
-                    try await error(.invalidResponseFormat(messageType: .GQL_CONNECTION_KEEP_ALIVE))
-                    return
-                }
-                try await onConnectionKeepAlive(connectionKeepAliveResponse, self)
-            case .GQL_DATA:
-                guard let nextResponse = try? decoder.decode(DataResponse.self, from: json) else {
-                    try await error(.invalidResponseFormat(messageType: .GQL_DATA))
-                    return
-                }
-                try await onData(nextResponse, self)
-            case .GQL_ERROR:
-                guard let errorResponse = try? decoder.decode(ErrorResponse.self, from: json) else {
-                    try await error(.invalidResponseFormat(messageType: .GQL_ERROR))
-                    return
-                }
-                try await onError(errorResponse, self)
-            case .GQL_COMPLETE:
-                guard let completeResponse = try? decoder.decode(CompleteResponse.self, from: json)
-                else {
-                    try await error(.invalidResponseFormat(messageType: .GQL_COMPLETE))
-                    return
-                }
-                try await onComplete(completeResponse, self)
-            default:
-                try await error(.invalidType())
+            try await onConnectionAck(connectionAckResponse, self)
+        case .GQL_CONNECTION_KEEP_ALIVE:
+            guard
+                let connectionKeepAliveResponse = try? decoder.decode(
+                    ConnectionKeepAliveResponse.self,
+                    from: message
+                )
+            else {
+                try await error(.invalidResponseFormat(messageType: .GQL_CONNECTION_KEEP_ALIVE))
+                return
             }
+            try await onConnectionKeepAlive(connectionKeepAliveResponse, self)
+        case .GQL_DATA:
+            guard let nextResponse = try? decoder.decode(DataResponse.self, from: message) else {
+                try await error(.invalidResponseFormat(messageType: .GQL_DATA))
+                return
+            }
+            try await onData(nextResponse, self)
+        case .GQL_ERROR:
+            guard let errorResponse = try? decoder.decode(ErrorResponse.self, from: message) else {
+                try await error(.invalidResponseFormat(messageType: .GQL_ERROR))
+                return
+            }
+            try await onError(errorResponse, self)
+        case .GQL_COMPLETE:
+            guard let completeResponse = try? decoder.decode(CompleteResponse.self, from: message)
+            else {
+                try await error(.invalidResponseFormat(messageType: .GQL_COMPLETE))
+                return
+            }
+            try await onComplete(completeResponse, self)
+        default:
+            try await error(.invalidType())
         }
     }
 
     /// Send a `connection_init` request through the messenger
     public func sendConnectionInit(payload: InitPayload) async throws {
         try await messenger.send(
-            ConnectionInitRequest(
-                payload: payload
-            ).toJSON(encoder)
+            encoder.encode(
+                ConnectionInitRequest(
+                    payload: payload
+                )
+            )
         )
     }
 
     /// Send a `start` request through the messenger
     public func sendStart(payload: GraphQLRequest, id: String) async throws {
         try await messenger.send(
-            StartRequest(
-                payload: payload,
-                id: id
-            ).toJSON(encoder)
+            encoder.encode(
+                StartRequest(
+                    payload: payload,
+                    id: id
+                )
+            )
         )
     }
 
     /// Send a `stop` request through the messenger
     public func sendStop(id: String) async throws {
         try await messenger.send(
-            StopRequest(
-                id: id
-            ).toJSON(encoder)
+            encoder.encode(
+                StopRequest(
+                    id: id
+                )
+            )
         )
     }
 
     /// Send a `connection_terminate` request through the messenger
     public func sendConnectionTerminate() async throws {
         try await messenger.send(
-            ConnectionTerminateRequest().toJSON(encoder)
+            encoder.encode(
+                ConnectionTerminateRequest()
+            )
         )
     }
 

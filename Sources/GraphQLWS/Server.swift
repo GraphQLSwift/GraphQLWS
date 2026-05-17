@@ -52,7 +52,7 @@ where
         self.onOperationComplete = onOperationComplete
         self.onOperationError = onOperationError
     }
-    
+
     deinit {
         subscriptionTasks.values.forEach { $0.cancel() }
     }
@@ -62,21 +62,6 @@ where
     public func listen<A: AsyncSequence & Sendable>(to incoming: A) async throws
     where A.Element == Data {
         for try await message in incoming {
-            try await respond(to: message)
-        }
-    }
-
-    /// Listen and react to the provided async sequence of client messages. This function will block until the stream is completed.
-    /// - Parameter incoming: The client message sequence that the server should react to.
-    @available(*, deprecated, message: "Use `Data` sequence instead.")
-    public func listen<A: AsyncSequence & Sendable>(to incoming: A) async throws
-    where A.Element == String {
-        for try await stringMessage in incoming {
-            guard let message = stringMessage.data(using: .utf8) else {
-                try await error(.invalidEncoding())
-                return
-            }
-
             try await respond(to: message)
         }
     }

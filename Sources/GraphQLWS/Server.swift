@@ -164,26 +164,28 @@ where
             }
 
             if isStreaming {
+                let stream: SubscriptionSequenceType
                 do {
-                    let stream = try await onSubscribe(graphQLRequest, initResult)
-                    for try await event in stream {
-                        try Task.checkCancellation()
-                        try await self.sendData(event, id: id)
-                    }
+                    stream = try await onSubscribe(graphQLRequest, initResult)
                 } catch {
-                    try await self.sendError(error, id: id)
+                    try await sendError(error, id: id)
+                    return
                 }
-                try await self.sendComplete(id: id)
+                for try await event in stream {
+                    try await sendData(event, id: id)
+                }
             } else {
+                let result: GraphQLResult
                 do {
-                    let result = try await onExecute(graphQLRequest, initResult)
-                    try await self.sendData(result, id: id)
-                    try await self.sendComplete(id: id)
+                    result = try await onExecute(graphQLRequest, initResult)
                 } catch {
-                    try await self.sendError(error, id: id)
+                    try await sendError(error, id: id)
+                    return
                 }
+                try await sendData(result, id: id)
             }
-            executionTasks.removeValue(forKey: id)
+            try await sendComplete(id: id)
+            try await onOperationComplete(id)
         }
 
     }
@@ -273,11 +275,6 @@ where
     /// Send an `error` response through the messenger
     private func sendError(_ error: Error, id: String) async throws {
         try await sendError([error], id: id)
-    }
-
-    /// Send an `error` response through the messenger
-    private func sendError(_ errorMessage: String, id: String) async throws {
-        try await sendError(GraphQLError(message: errorMessage), id: id)
     }
 
     /// Send an error through the messenger and close the connection

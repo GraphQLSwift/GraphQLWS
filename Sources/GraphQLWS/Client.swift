@@ -68,60 +68,77 @@ public actor Client<InitPayload: Equatable & Codable> {
 
         switch response.type {
         case .GQL_CONNECTION_ERROR:
-            guard
-                let connectionErrorResponse = try? decoder.decode(
+            let connectionErrorResponse: ConnectionErrorResponse
+            do {
+                connectionErrorResponse = try decoder.decode(
                     ConnectionErrorResponse.self,
                     from: message
                 )
-            else {
+            } catch {
                 try await messenger.error(
-                    .invalidResponseFormat(messageType: .GQL_CONNECTION_ERROR)
+                    .invalidResponseFormat(messageType: .GQL_CONNECTION_ERROR, error: error)
                 )
                 return
             }
             try await onConnectionError(connectionErrorResponse, self)
         case .GQL_CONNECTION_ACK:
-            guard
-                let connectionAckResponse = try? decoder.decode(
+            let connectionAckResponse: ConnectionAckResponse
+            do {
+                connectionAckResponse = try decoder.decode(
                     ConnectionAckResponse.self,
                     from: message
                 )
-            else {
+            } catch {
                 try await messenger.error(
-                    .invalidResponseFormat(messageType: .GQL_CONNECTION_ERROR)
+                    .invalidResponseFormat(messageType: .GQL_CONNECTION_ERROR, error: error)
                 )
                 return
             }
             try await onConnectionAck(connectionAckResponse, self)
         case .GQL_CONNECTION_KEEP_ALIVE:
-            guard
-                let connectionKeepAliveResponse = try? decoder.decode(
+            let connectionKeepAliveResponse: ConnectionKeepAliveResponse
+            do {
+                connectionKeepAliveResponse = try decoder.decode(
                     ConnectionKeepAliveResponse.self,
                     from: message
                 )
-            else {
+            } catch {
                 try await messenger.error(
-                    .invalidResponseFormat(messageType: .GQL_CONNECTION_KEEP_ALIVE)
+                    .invalidResponseFormat(messageType: .GQL_CONNECTION_KEEP_ALIVE, error: error)
                 )
                 return
             }
             try await onConnectionKeepAlive(connectionKeepAliveResponse, self)
         case .GQL_DATA:
-            guard let nextResponse = try? decoder.decode(DataResponse.self, from: message) else {
-                try await messenger.error(.invalidResponseFormat(messageType: .GQL_DATA))
+            let dataResponse: DataResponse
+            do {
+                dataResponse = try decoder.decode(DataResponse.self, from: message)
+            } catch {
+                try await messenger.error(
+                    .invalidResponseFormat(messageType: .GQL_DATA, error: error)
+                )
                 return
             }
-            try await onData(nextResponse, self)
+            try await onData(dataResponse, self)
         case .GQL_ERROR:
-            guard let errorResponse = try? decoder.decode(ErrorResponse.self, from: message) else {
-                try await messenger.error(.invalidResponseFormat(messageType: .GQL_ERROR))
+            let errorResponse: ErrorResponse
+            do {
+                errorResponse = try decoder.decode(ErrorResponse.self, from: message)
+            } catch {
+                try await messenger.error(
+                    .invalidResponseFormat(messageType: .GQL_ERROR, error: error)
+                )
                 return
             }
             try await onError(errorResponse, self)
         case .GQL_COMPLETE:
-            guard let completeResponse = try? decoder.decode(CompleteResponse.self, from: message)
-            else {
-                try await messenger.error(.invalidResponseFormat(messageType: .GQL_COMPLETE))
+            let completeResponse: CompleteResponse
+            do {
+                completeResponse = try decoder.decode(CompleteResponse.self, from: message)
+            } catch {
+                try await messenger.error(
+                    .invalidResponseFormat(messageType: .GQL_COMPLETE, error: error)
+                )
                 return
             }
             try await onComplete(completeResponse, self)

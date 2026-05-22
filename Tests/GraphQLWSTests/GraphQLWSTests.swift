@@ -259,6 +259,64 @@ struct GraphqlTransportWSTests {
         )
     }
 
+    /// Tests malformed requests include decoder details in the transport error
+    @Test func malformedRequestIncludesDecodingDetails() async throws {
+        let api = TestAPI()
+        let context = TestContext()
+        let server = Server<TokenInitPayload, Void, AsyncThrowingStream<GraphQLResult, Error>>(
+            messenger: serverMessenger,
+            onInit: { _ in },
+            onExecute: { graphQLRequest, _ in
+                try await api.execute(
+                    request: graphQLRequest.query,
+                    context: context
+                )
+            },
+            onSubscribe: { graphQLRequest, _ in
+                try await api.subscribe(
+                    request: graphQLRequest.query,
+                    context: context
+                ).get()
+            }
+        )
+        let (incoming, continuation) = AsyncThrowingStream<Data, any Error>.makeStream()
+
+        continuation.yield(Data(#"{"type":"stop"}"#.utf8))
+        continuation.finish()
+
+        try await server.listen(to: incoming)
+
+        let error = await #expect(throws: TestMessengerError.self) {
+            for try await _ in serverMessenger.stream {}
+        }
+        #expect(error?.code == 4413)
+        #expect(error?.message.contains("Request message doesn't match 'stop' JSON format") == true)
+        #expect(error?.message.contains("keyNotFound") == true)
+        #expect(error?.message.contains(#""id""#) == true)
+    }
+
+    /// Tests malformed responses include decoder details in the transport error
+    @Test func malformedResponseIncludesDecodingDetails() async throws {
+        let messenger = TestMessenger()
+        let client = Client<TokenInitPayload>(messenger: messenger)
+        let (incoming, continuation) = AsyncThrowingStream<Data, any Error>.makeStream()
+
+        continuation.yield(Data(#"{"type":"data"}"#.utf8))
+        continuation.finish()
+
+        try await client.listen(to: incoming)
+
+        let error = await #expect(throws: TestMessengerError.self) {
+            for try await _ in messenger.stream {}
+        }
+        #expect(error?.code == 4414)
+        #expect(
+            error?.message.contains("Response message doesn't match 'data' JSON format") == true
+        )
+        #expect(error?.message.contains("keyNotFound") == true)
+        #expect(error?.message.contains(#""id""#) == true)
+    }
+
     enum TestError: Error {
         case couldBeAnything
     }

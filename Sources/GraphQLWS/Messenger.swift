@@ -15,3 +15,10 @@ public protocol Messenger: Sendable {
     ///   - code: An error code
     func error(_ message: String, code: Int) async throws
 }
+
+extension Messenger {
+    /// Send an error through the messenger and close the connection
+    func error(_ error: GraphQLWSError) async throws {
+        try await self.error(error.message, code: error.code.rawValue)
+    }
+}

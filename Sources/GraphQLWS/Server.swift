@@ -71,7 +71,7 @@ where
         do {
             request = try decoder.decode(Request.self, from: message)
         } catch {
-            try await self.error(.noType())
+            try await messenger.error(.noType())
             return
         }
 
@@ -84,19 +84,19 @@ where
                     from: message
                 )
             else {
-                try await error(.invalidRequestFormat(messageType: .GQL_CONNECTION_INIT))
+                try await messenger.error(.invalidRequestFormat(messageType: .GQL_CONNECTION_INIT))
                 return
             }
             try await onConnectionInit(connectionInitRequest, messenger)
         case .GQL_START:
             guard let startRequest = try? decoder.decode(StartRequest.self, from: message) else {
-                try await error(.invalidRequestFormat(messageType: .GQL_START))
+                try await messenger.error(.invalidRequestFormat(messageType: .GQL_START))
                 return
             }
             try await onStart(startRequest, messenger)
         case .GQL_STOP:
             guard let stopRequest = try? decoder.decode(StopRequest.self, from: message) else {
-                try await error(.invalidRequestFormat(messageType: .GQL_STOP))
+                try await messenger.error(.invalidRequestFormat(messageType: .GQL_STOP))
                 return
             }
             try await onStop(stopRequest)
@@ -107,12 +107,14 @@ where
                     from: message
                 )
             else {
-                try await error(.invalidRequestFormat(messageType: .GQL_CONNECTION_TERMINATE))
+                try await messenger.error(
+                    .invalidRequestFormat(messageType: .GQL_CONNECTION_TERMINATE)
+                )
                 return
             }
             try await onConnectionTerminate(connectionTerminateRequest, messenger)
         default:
-            try await error(.invalidType())
+            try await messenger.error(.invalidType())
         }
     }
 
@@ -121,14 +123,14 @@ where
         _: Messenger
     ) async throws {
         guard !initialized else {
-            try await error(.tooManyInitializations())
+            try await messenger.error(.tooManyInitializations())
             return
         }
 
         do {
             initResult = try await onInit(connectionInitRequest.payload)
         } catch {
-            try await self.error(.unauthorized())
+            try await messenger.error(.unauthorized())
             return
         }
         initialized = true
@@ -137,7 +139,7 @@ where
 
     private func onStart(_ startRequest: StartRequest, _: Messenger) async throws {
         guard initialized, let initResult else {
-            try await error(.notInitialized())
+            try await messenger.error(.notInitialized())
             return
         }
 
@@ -155,7 +157,7 @@ where
         let onSubscribe = self.onSubscribe
         let onExecute = self.onExecute
         guard executionTasks[id] == nil else {
-            try await self.error(.subscriberAlreadyExists(id: id))
+            try await messenger.error(.subscriberAlreadyExists(id: id))
             return
         }
         executionTasks[id] = Task {
@@ -192,7 +194,7 @@ where
 
     private func onStop(_ stopRequest: StopRequest) async throws {
         guard initialized else {
-            try await error(.notInitialized())
+            try await messenger.error(.notInitialized())
             return
         }
 
@@ -275,10 +277,5 @@ where
     /// Send an `error` response through the messenger
     private func sendError(_ error: Error, id: String) async throws {
         try await sendError([error], id: id)
-    }
-
-    /// Send an error through the messenger and close the connection
-    private func error(_ error: GraphQLWSError) async throws {
-        try await messenger.error(error.message, code: error.code.rawValue)
     }
 }

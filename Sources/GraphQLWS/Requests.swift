@@ -67,8 +67,7 @@ public struct StopRequest: Equatable, Codable {
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: Self.CodingKeys.self)
-        if try container.decode(RequestMessageType.self, forKey: .type) != .GQL_CONNECTION_TERMINATE
-        {
+        if try container.decode(RequestMessageType.self, forKey: .type) != .GQL_STOP {
             throw DecodingError.dataCorrupted(
                 .init(
                     codingPath: decoder.codingPath,

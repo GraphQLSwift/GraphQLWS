@@ -58,16 +58,16 @@ struct GraphQLWSError: Error {
         )
     }
 
-    static func invalidRequestFormat(messageType: RequestMessageType) -> Self {
+    static func invalidRequestFormat(messageType: RequestMessageType, error: Error) -> Self {
         return self.init(
-            "Request message doesn't match '\(messageType.type.rawValue)' JSON format",
+            "Request message doesn't match '\(messageType.type.rawValue)' JSON format: \(error)",
             code: .invalidRequestFormat
         )
     }
 
-    static func invalidResponseFormat(messageType: ResponseMessageType) -> Self {
+    static func invalidResponseFormat(messageType: ResponseMessageType, error: Error) -> Self {
         return self.init(
-            "Response message doesn't match '\(messageType.type.rawValue)' JSON format",
+            "Response message doesn't match '\(messageType.type.rawValue)' JSON format: \(error)",
             code: .invalidResponseFormat
         )
     }
